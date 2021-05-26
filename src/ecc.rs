@@ -213,8 +213,8 @@ impl Ecc {
     }
 
     pub(crate) fn recv_buf(&mut self, buf: &mut BytesMut) -> Result {
-        unsafe { buf.set_len(1) };
-        buf[0] = 0xff;
+        buf.clear();
+        buf.put_u8(0xff);
         for _retry in 0..RECV_RETRIES {
             let msg = i2c_linux::Message::Read {
                 address: self.address,
