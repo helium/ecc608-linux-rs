@@ -7,8 +7,8 @@
 [crates-url]: https://crates.io/crates/ecc608-linux
 [docs-badge]: https://docs.rs/ecc608-linux/badge.svg
 [docs-url]: https://docs.rs/ecc608-linux/latest/ecc608-linux/
-[actions-badge]: https://github.com/helium/ecc608-linux-rs/workflows/CI/badge.svg
-[actions-url]: https://github.com/helium/ecc608-linux-rs/actions?query=workflow%3ACI+branch%3Amain
+[actions-badge]: https://github.com/helium/ecc608-linux-rs/workflows/rust/badge.svg
+[actions-url]: https://github.com/helium/ecc608-linux-rs/actions/rust.yml
 [discord-badge]: https://img.shields.io/discord/500028886025895936.svg?logo=discord&style=flat-square
 [discord-url]: https://discord.gg/helium
 
