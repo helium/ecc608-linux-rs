@@ -36,7 +36,7 @@ impl Ecc {
     /// section 2.2.6 of the Data Sheet the first two, and last byte of the
     /// returned binary will always be `[0x01, 0x23]` and `0xEE`
     pub fn get_serial(&mut self) -> Result<Bytes> {
-        let bytes = self.read(true, &Address::config(0, 0)?)?;
+        let bytes = self.read(true, Address::config(0, 0)?)?;
         let mut result = BytesMut::with_capacity(9);
         result.extend_from_slice(&bytes.slice(0..=3));
         result.extend_from_slice(&bytes.slice(8..=12));
@@ -48,7 +48,7 @@ impl Ecc {
     }
 
     pub fn get_slot_config(&mut self, slot: u8) -> Result<SlotConfig> {
-        let bytes = self.read(false, &Address::slot_config(slot)?)?;
+        let bytes = self.read(false, Address::slot_config(slot)?)?;
         let (s0, s1) = bytes.split_at(2);
         match slot & 1 == 0 {
             true => Ok(SlotConfig::from(s0)),
@@ -58,7 +58,7 @@ impl Ecc {
 
     pub fn set_slot_config(&mut self, slot: u8, config: &SlotConfig) -> Result {
         let slot_address = Address::slot_config(slot)?;
-        let bytes = self.read(false, &slot_address)?;
+        let bytes = self.read(false, slot_address)?;
         let (s0, s1) = bytes.split_at(2);
         let mut new_bytes = BytesMut::with_capacity(4);
         match slot & 1 == 0 {
@@ -71,11 +71,11 @@ impl Ecc {
                 new_bytes.put_u16(config.into());
             }
         }
-        self.write(&slot_address, &new_bytes.freeze())
+        self.write(slot_address, &new_bytes.freeze())
     }
 
     pub fn get_key_config(&mut self, slot: u8) -> Result<KeyConfig> {
-        let bytes = self.read(false, &Address::key_config(slot)?)?;
+        let bytes = self.read(false, Address::key_config(slot)?)?;
         let (s0, s1) = bytes.split_at(2);
         match slot & 1 == 0 {
             true => Ok(KeyConfig::from(s0)),
@@ -85,7 +85,7 @@ impl Ecc {
 
     pub fn set_key_config(&mut self, slot: u8, config: &KeyConfig) -> Result {
         let slot_address = Address::key_config(slot)?;
-        let bytes = self.read(false, &slot_address)?;
+        let bytes = self.read(false, slot_address)?;
         let (s0, s1) = bytes.split_at(2);
         let mut new_bytes = BytesMut::with_capacity(4);
         match slot & 1 == 0 {
@@ -98,11 +98,11 @@ impl Ecc {
                 new_bytes.put_u16(config.into());
             }
         }
-        self.write(&slot_address, &new_bytes.freeze())
+        self.write(slot_address, &new_bytes.freeze())
     }
 
     pub fn get_locked(&mut self, zone: &Zone) -> Result<bool> {
-        let bytes = self.read(false, &Address::config(2, 5)?)?;
+        let bytes = self.read(false, Address::config(2, 5)?)?;
         let (_, s1) = bytes.split_at(2);
         match zone {
             Zone::Config => Ok(s1[1] == 0),
@@ -137,12 +137,12 @@ impl Ecc {
             .map(|_| ())
     }
 
-    pub fn read(&mut self, read_32: bool, address: &Address) -> Result<Bytes> {
-        self.send_command(&EccCommand::read(read_32, address.clone()))
+    pub fn read(&mut self, read_32: bool, address: Address) -> Result<Bytes> {
+        self.send_command(&EccCommand::read(read_32, address))
     }
 
-    pub fn write(&mut self, address: &Address, bytes: &[u8]) -> Result {
-        self.send_command(&EccCommand::write(address.clone(), bytes))
+    pub fn write(&mut self, address: Address, bytes: &[u8]) -> Result {
+        self.send_command(&EccCommand::write(address, bytes))
             .map(|_| ())
     }
 
