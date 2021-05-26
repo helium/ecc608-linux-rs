@@ -116,7 +116,6 @@ impl Ecc {
 
     pub fn sign(&mut self, key_slot: u8, data: &[u8]) -> Result<Bytes> {
         let digest = Sha256::digest(data);
-        //        let _ = self.random()?;
         let _ = self.send_command_retries(
             &EccCommand::nonce(DataBuffer::MessageDigest, Bytes::copy_from_slice(&digest)),
             false,
