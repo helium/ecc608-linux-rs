@@ -247,26 +247,27 @@ impl EccCommand {
 
 impl EccResponse {
     pub fn from_bytes(buf: &[u8]) -> Result<Self> {
-        if buf[0] == ATCA_RSP_SIZE_MIN {
-            match buf[1] {
-                CMD_STATUS_BYTE_SUCCESS => Ok(Self::Data(Bytes::new())),
-                CMD_STATUS_BYTE_PARSE => Ok(Self::Error(EccError::ParseError)),
-                CMD_STATUS_BYTE_ECC => Ok(Self::Error(EccError::Fault)),
-                CMD_STATUS_BYTE_SELF_TEST => Ok(Self::Error(EccError::SelfTestError)),
-                CMD_STATUS_BYTE_EXEC => Ok(Self::Error(EccError::ExecError)),
-                CMD_STATUS_BYTE_COMM => Ok(Self::Error(EccError::CommsError)),
-                CMD_STATUS_BYTE_WATCHDOG => Ok(Self::Error(EccError::WatchDogError)),
-                error => Ok(Self::Error(EccError::Unknown(error))),
+        const MS: u8 = ATCA_RSP_SIZE_MIN;
+        let resp = match buf {
+            [MS, CMD_STATUS_BYTE_SUCCESS, ..] => Self::Data(Bytes::new()),
+            [MS, CMD_STATUS_BYTE_PARSE, ..] => Self::Error(EccError::ParseError),
+            [MS, CMD_STATUS_BYTE_ECC, ..] => Self::Error(EccError::Fault),
+            [MS, CMD_STATUS_BYTE_SELF_TEST, ..] => Self::Error(EccError::SelfTestError),
+            [MS, CMD_STATUS_BYTE_EXEC, ..] => Self::Error(EccError::ExecError),
+            [MS, CMD_STATUS_BYTE_COMM, ..] => Self::Error(EccError::CommsError),
+            [MS, CMD_STATUS_BYTE_WATCHDOG, ..] => Self::Error(EccError::WatchDogError),
+            [MS, error, ..] => Self::Error(EccError::Unknown(*error)),
+            _ => {
+                let (buf, mut buf_crc) = buf.split_at(buf.len() - 2);
+                let expected = crc(&buf);
+                let actual = buf_crc.get_u16_le();
+                if expected != actual {
+                    return Err(Error::crc(expected, actual));
+                }
+                Self::Data(Bytes::copy_from_slice(&buf[1..]))
             }
-        } else {
-            let (buf, mut buf_crc) = buf.split_at(buf.len() - 2);
-            let expected = crc(&buf);
-            let actual = buf_crc.get_u16_le();
-            if expected != actual {
-                return Err(Error::crc(expected, actual));
-            }
-            Ok(Self::Data(Bytes::copy_from_slice(&buf[1..])))
-        }
+        };
+        Ok(resp)
     }
 }
 
