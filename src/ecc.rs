@@ -147,7 +147,13 @@ impl Ecc {
     }
 
     fn send_wake(&mut self) {
-        let _ = self.send_buf(&[0]);
+        let write_msg = i2c_linux::Message::Write {
+            address: 0,
+            data: &[0],
+            flags: Default::default(),
+        };
+
+        self.i2c.i2c_transfer(&mut [write_msg]);
     }
 
     fn send_sleep(&mut self) {
