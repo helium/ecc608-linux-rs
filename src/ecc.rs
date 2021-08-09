@@ -202,9 +202,12 @@ impl Ecc {
     }
 
     fn send_recv_buf(&mut self, delay: Duration, buf: &mut BytesMut) -> Result {
-        self.send_buf(&buf[..])?;
+        let mut swi_msg = self.encode_uart_to_swi(&buf);
+        self.send_buf(&swi_msg)?;
         thread::sleep(delay);
-        self.recv_buf(buf)
+        self.recv_buf(&mut swi_msg)?; // This will receive swi_msg, we will pass that msg to the decode fn with buf as an output as well
+        self.decode_swi_to_uart(&swi_msg, buf);
+        Ok(())
     }
 
     pub(crate) fn send_buf(&mut self, buf: &[u8]) -> Result {
@@ -245,5 +248,43 @@ impl Ecc {
         };
         self.i2c.i2c_transfer(&mut [read_msg])?;
         Ok(())
+    }
+
+    fn encode_uart_to_swi(&mut self, uart_msg: &BytesMut ) -> BytesMut {
+        
+        let mut bit_field = BytesMut::new();
+        bit_field.reserve(uart_msg.len() * 8 );
+
+        for (byte_index, &byte) in uart_msg.iter().enumerate() {
+            for bit_index in 0..7 {
+                if ( ((1 << bit_index ) & byte) >> bit_index ) == 0 {
+                    bit_field[bit_index + byte_index] = 0xFD; 
+                } else {
+                    bit_field[bit_index + byte_index] = 0xFF;
+                }
+            }
+        }
+        bit_field
+    }
+
+    fn decode_swi_to_uart(&mut self, swi_msg: &BytesMut, uart_msg: &mut BytesMut ) {
+
+        uart_msg.clear();
+        assert!( (swi_msg.len() % 8) == 0);
+        uart_msg.resize( &swi_msg.len() % 8, 0 );
+
+
+        let mut i = 0; 
+        for byte in uart_msg.iter_mut() {
+            let bit_slice= &swi_msg[i..i+7];
+            
+            for bit in bit_slice.iter(){
+                *byte <<= 1;
+                if *bit == 0xFF {
+                    *byte ^= 1;
+                }
+            }
+            i += 8;
+        }
     }
 }
