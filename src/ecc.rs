@@ -254,35 +254,34 @@ impl Ecc {
         
         let mut bit_field = BytesMut::new();
         bit_field.reserve(uart_msg.len() * 8 );
-
-        for (byte_index, &byte) in uart_msg.iter().enumerate() {
-            for bit_index in 0..7 {
+    
+        for byte in uart_msg.iter() {
+            for bit_index in 0..8 {
                 if ( ((1 << bit_index ) & byte) >> bit_index ) == 0 {
-                    bit_field[bit_index + byte_index] = 0xFD; 
+                    bit_field.put_u8(0xFD); 
                 } else {
-                    bit_field[bit_index + byte_index] = 0xFF;
+                    bit_field.put_u8(0xFF);
                 }
             }
         }
         bit_field
     }
-
+    
     fn decode_swi_to_uart(&mut self, swi_msg: &BytesMut, uart_msg: &mut BytesMut ) {
-
+    
         uart_msg.clear();
         assert!( (swi_msg.len() % 8) == 0);
-        uart_msg.resize( &swi_msg.len() % 8, 0 );
-
-
+        uart_msg.resize( &swi_msg.len() / 8, 0 );
+    
         let mut i = 0; 
         for byte in uart_msg.iter_mut() {
-            let bit_slice= &swi_msg[i..i+7];
+            let bit_slice= &swi_msg[i..i+8];
             
             for bit in bit_slice.iter(){
-                *byte <<= 1;
                 if *bit == 0xFF {
                     *byte ^= 1;
                 }
+                *byte = byte.rotate_right(1);
             }
             i += 8;
         }
