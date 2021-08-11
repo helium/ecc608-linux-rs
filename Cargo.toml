@@ -9,7 +9,7 @@ repository = "https://github.com/helium/ecc608-linux-rs"
 readme = "README.md"
 
 [dependencies]
-serialport = "4"
+serialport = {version = "4", default-features = false }
 sha2 = "0"
 bytes = "1"
 bitfield = "0"
