@@ -4,15 +4,15 @@ use crate::{
     Address, DataBuffer, Error, KeyConfig, Result, SlotConfig, Zone,
 };
 use bytes::{BufMut, Bytes, BytesMut};
-use i2c_linux::{I2c, ReadFlags};
+use serialport::{DataBits, SerialPort, StopBits};
 use sha2::{Digest, Sha256};
-use std::{fs::File, thread, time::Duration};
+use std::{thread, time::Duration};
 
 pub use crate::command::KeyType;
 
 pub struct Ecc {
-    i2c: I2c<File>,
-    address: u16,
+    uart_cmd: Box<dyn SerialPort>,
+    uart_wake: Box<dyn SerialPort>,
 }
 
 pub const MAX_SLOT: u8 = 15;
@@ -23,9 +23,35 @@ pub(crate) const CMD_RETRIES: u8 = 10;
 
 impl Ecc {
     pub fn from_path(path: &str, address: u16) -> Result<Self> {
-        let mut i2c = I2c::from_path(path)?;
-        i2c.smbus_set_slave_address(address, false)?;
-        Ok(Self { i2c, address })
+
+        let _ = address; //keep the API the same. Address refers to i2c addr which isn't required for SWI
+
+        let port_name = path;
+        let baud_rate = 230_400;
+        let stop_bits = StopBits::One;
+        let data_bits = DataBits::Seven;
+        let builder = serialport::new(port_name, baud_rate)
+            .stop_bits(stop_bits)
+            .data_bits(data_bits);
+
+        let uart_cmd = builder.open().unwrap_or_else(|e| {
+            eprintln!("Failed to open \"{}\". Error: {}", port_name, e);
+            ::std::process::exit(1);
+        });
+
+        let port_name = path;
+        let baud_rate = 115_200;
+        let stop_bits = StopBits::One;
+        let data_bits = DataBits::Eight;
+        let builder = serialport::new(port_name, baud_rate)
+            .stop_bits(stop_bits)
+            .data_bits(data_bits);
+        let uart_wake = builder.open().unwrap_or_else(|e| {
+            eprintln!("Failed to open \"{}\". Error: {}", port_name, e);
+            ::std::process::exit(1);
+        });
+
+        Ok(Self {uart_cmd, uart_wake})
     }
 
     pub fn get_info(&mut self) -> Result<Bytes> {
@@ -147,17 +173,11 @@ impl Ecc {
     }
 
     fn send_wake(&mut self) {
-        let write_msg = i2c_linux::Message::Write {
-            address: 0,
-            data: &[0],
-            flags: Default::default(),
-        };
-
-        let _ = self.i2c.i2c_transfer(&mut [write_msg]);
+        let _ = self.uart_wake.write(&[0]);
     }
 
     fn send_sleep(&mut self) {
-        let _ = self.send_buf(&[1]);
+        let _ = self.uart_cmd.write(&[0xCC]);
     }
 
     pub(crate) fn send_command(&mut self, command: &EccCommand) -> Result<Bytes> {
@@ -205,48 +225,44 @@ impl Ecc {
         let mut swi_msg = self.encode_uart_to_swi(&buf);
         self.send_buf(&swi_msg)?;
         thread::sleep(delay);
-        self.recv_buf(&mut swi_msg)?; // This will receive swi_msg, we will pass that msg to the decode fn with buf as an output as well
+        self.recv_buf(&mut swi_msg)?;
         self.decode_swi_to_uart(&swi_msg, buf);
         Ok(())
     }
 
     pub(crate) fn send_buf(&mut self, buf: &[u8]) -> Result {
-        let write_msg = i2c_linux::Message::Write {
-            address: self.address,
-            data: &buf,
-            flags: Default::default(),
-        };
-
-        self.i2c.i2c_transfer(&mut [write_msg])?;
+        self.uart_cmd.write(buf)?;
         Ok(())
     }
 
     pub(crate) fn recv_buf(&mut self, buf: &mut BytesMut) -> Result {
-        unsafe { buf.set_len(1) };
-        buf[0] = 0xff;
+        buf.resize(8,0xff);
+        
         for _retry in 0..RECV_RETRIES {
-            let msg = i2c_linux::Message::Read {
-                address: self.address,
-                data: &mut buf[0..1],
-                flags: Default::default(),
-            };
-            if let Err(_err) = self.i2c.i2c_transfer(&mut [msg]) {
-            } else {
-                break;
+            let read = self.uart_cmd.read(buf);
+            
+            match read {
+                Ok(cnt) => {
+                    assert!(cnt == 8);
+                    break;
+                },
+                Err(_e) => {} 
             }
+            
             thread::sleep(RECV_RETRY_WAIT);
         }
-        let count = buf[0] as usize;
+        
+        let mut msg_size = BytesMut::new();
+        msg_size.resize(1,0xFF);
+
+        self.decode_swi_to_uart(&buf, &mut msg_size);
+
+        let count = msg_size[0] as usize;
         if count == 0xff {
             return Err(Error::timeout());
         }
-        unsafe { buf.set_len(count) };
-        let read_msg = i2c_linux::Message::Read {
-            address: self.address,
-            data: &mut buf[1..count],
-            flags: ReadFlags::NO_START,
-        };
-        self.i2c.i2c_transfer(&mut [read_msg])?;
+        buf.reserve((count-1)*8);
+        self.uart_cmd.read( &mut buf[8..])?;
         Ok(())
     }
 
