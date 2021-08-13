@@ -172,8 +172,20 @@ impl Ecc {
             .map(|_| ())
     }
 
-    fn send_wake(&mut self) {
+    fn send_wake(&mut self) -> Result {
         let _ = self.uart_wake.write(&[0]);
+        thread::sleep(WAKE_DELAY);
+        let status_delay = Duration::from_micros(200);
+        let mut transmit = BytesMut::new();
+        transmit.put_u8(0x88);
+
+        self.send_recv_buf(status_delay, &mut transmit);
+
+        let response = EccResponse::from_bytes(&transmit[..])?;
+        match response {
+            EccResponse::Error(err) => Err(Error::ecc(err)),
+            _ => Ok(()),
+        }
     }
 
     fn send_sleep(&mut self) {
@@ -193,18 +205,18 @@ impl Ecc {
         let mut buf = BytesMut::with_capacity(ATCA_CMD_SIZE_MAX as usize);
         for retry in 0..retries {
             buf.clear();
-            command.bytes_into(&mut buf);
-
-            self.send_wake();
-            thread::sleep(WAKE_DELAY);
-
-            if let Err(_err) = self.send_recv_buf(command.duration(), &mut buf) {
+            
+            if let Err(_err) = self.send_wake() {
                 if retry == retries {
                     break;
                 } else {
                     continue;
                 }
             }
+            
+            command.bytes_into(&mut buf);
+
+            self.send_recv_buf(command.duration(), &mut buf);
 
             let response = EccResponse::from_bytes(&buf[..])?;
             if sleep {
@@ -221,13 +233,12 @@ impl Ecc {
         Err(Error::timeout())
     }
 
-    fn send_recv_buf(&mut self, delay: Duration, buf: &mut BytesMut) -> Result {
+    fn send_recv_buf(&mut self, delay: Duration, buf: &mut BytesMut) {
         let mut swi_msg = self.encode_uart_to_swi(&buf);
-        self.send_buf(&swi_msg)?;
+        let _ = self.send_buf(&swi_msg);
         thread::sleep(delay);
-        self.recv_buf(&mut swi_msg)?;
+        let _ = self.recv_buf(&mut swi_msg);
         self.decode_swi_to_uart(&swi_msg, buf);
-        Ok(())
     }
 
     pub(crate) fn send_buf(&mut self, buf: &[u8]) -> Result {
