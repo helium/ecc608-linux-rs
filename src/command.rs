@@ -227,7 +227,6 @@ impl EccCommand {
         }
         bytes[1] = (bytes.len() + 1) as u8;
         bytes.put_u16_le(crc(&bytes[1..]));
-        bytes.put_u8(0x88)
     }
 
     pub fn duration(&self) -> Duration {

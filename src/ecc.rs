@@ -11,47 +11,22 @@ use std::{thread, time::Duration};
 pub use crate::command::KeyType;
 
 pub struct Ecc {
-    uart_cmd: Box<dyn SerialPort>,
-    uart_wake: Box<dyn SerialPort>,
+    port: String,
 }
 
 pub const MAX_SLOT: u8 = 15;
 
 pub(crate) const RECV_RETRIES: u8 = 2;
 pub(crate) const RECV_RETRY_WAIT: Duration = Duration::from_millis(50);
-pub(crate) const CMD_RETRIES: u8 = 10;
+pub(crate) const CMD_RETRIES: u8 = 1; //TODO: Return to default val of 10
 
 impl Ecc {
     pub fn from_path(path: &str, address: u16) -> Result<Self> {
 
         let _ = address; //keep the API the same. Address refers to i2c addr which isn't required for SWI
+        let port = String::from( path );
 
-        let port_name = path;
-        let baud_rate = 230_400;
-        let stop_bits = StopBits::One;
-        let data_bits = DataBits::Seven;
-        let builder = serialport::new(port_name, baud_rate)
-            .stop_bits(stop_bits)
-            .data_bits(data_bits);
-
-        let uart_cmd = builder.open().unwrap_or_else(|e| {
-            eprintln!("Failed to open \"{}\". Error: {}", port_name, e);
-            ::std::process::exit(1);
-        });
-
-        let port_name = path;
-        let baud_rate = 115_200;
-        let stop_bits = StopBits::One;
-        let data_bits = DataBits::Eight;
-        let builder = serialport::new(port_name, baud_rate)
-            .stop_bits(stop_bits)
-            .data_bits(data_bits);
-        let uart_wake = builder.open().unwrap_or_else(|e| {
-            eprintln!("Failed to open \"{}\". Error: {}", port_name, e);
-            ::std::process::exit(1);
-        });
-
-        Ok(Self {uart_cmd, uart_wake})
+        Ok(Self {port})
     }
 
     pub fn get_info(&mut self) -> Result<Bytes> {
@@ -173,23 +148,78 @@ impl Ecc {
     }
 
     fn send_wake(&mut self) -> Result {
-        let _ = self.uart_wake.write(&[0]);
+        let port_name = &self.port;
+        let baud_rate = 115_200;
+        let stop_bits = StopBits::One;
+        let data_bits = DataBits::Eight;
+        let uart_wake_builder = serialport::new(port_name, baud_rate)
+            .stop_bits(stop_bits)
+            .data_bits(data_bits);
+
+        let mut uart_wake = uart_wake_builder.open().unwrap_or_else(|e| {
+            eprintln!("Failed to open port. Error: {}", e);
+            ::std::process::exit(1);
+        });
+        let _ = uart_wake.write(&[0]);
+        
         thread::sleep(WAKE_DELAY);
-        let status_delay = Duration::from_micros(200);
-        let mut transmit = BytesMut::new();
-        transmit.put_u8(0x88);
+        self.read_wake_response()
+    }
 
-        self.send_recv_buf(status_delay, &mut transmit);
+    fn read_wake_response( &mut self) -> Result {
+        let port_name = &self.port;
+        let baud_rate = 230_400;
+        let stop_bits = StopBits::One;
+        let data_bits = DataBits::Seven;
+        let uart_cmd_builder = serialport::new(port_name, baud_rate)
+            .stop_bits(stop_bits)
+            .data_bits(data_bits);
 
-        let response = EccResponse::from_bytes(&transmit[..])?;
+        let mut uart_cmd = uart_cmd_builder.open().unwrap_or_else(|e| {
+            eprintln!("Failed to open port. Error: {}", e);
+            ::std::process::exit(1);
+        });
+        
+        // Send transmit flag to signal bus is
+        let mut encoded_msg = BytesMut::new();
+        encoded_msg.resize(32,0);
+        let mut transmit_flag = BytesMut::new();
+        transmit_flag.put_u8(0x88);
+        let encoded_transmit_flag = self.encode_uart_to_swi(&transmit_flag );
+        self.send_buf(&encoded_transmit_flag, &mut uart_cmd)?;
+        thread::sleep(Duration::from_micros(3_000) );
+
+        let _ = uart_cmd.read(&mut encoded_msg);
+
+        let mut decoded_msg = BytesMut::new();
+        decoded_msg.resize(4, 0);
+        
+        self.decode_swi_to_uart(&encoded_msg, &mut decoded_msg);
+        println!("Message: {:02x}", decoded_msg);
+        
+        thread::sleep(RECV_RETRY_WAIT);
+
+        let response = EccResponse::from_bytes(&decoded_msg)?;
         match response {
-            EccResponse::Error(err) => Err(Error::ecc(err)),
-            _ => Ok(()),
+            EccResponse::Error(err) => return Err(Error::ecc(err)),
+            _ => return Ok(()),
         }
     }
 
-    fn send_sleep(&mut self) {
-        let _ = self.uart_cmd.write(&[0xCC]);
+    fn send_sleep(&mut self) {        
+        let port_name = &self.port;
+        let baud_rate = 230_400;
+        let stop_bits = StopBits::One;
+        let data_bits = DataBits::Seven;
+        let uart_cmd_builder = serialport::new(port_name, baud_rate)
+            .stop_bits(stop_bits)
+            .data_bits(data_bits);
+
+        let mut uart_cmd = uart_cmd_builder.open().unwrap_or_else(|e| {
+            eprintln!("Failed to open port. Error: {}", e);
+            ::std::process::exit(1);
+        });
+        let _ = uart_cmd.write(&[0xCC]);
     }
 
     pub(crate) fn send_command(&mut self, command: &EccCommand) -> Result<Bytes> {
@@ -234,46 +264,78 @@ impl Ecc {
     }
 
     fn send_recv_buf(&mut self, delay: Duration, buf: &mut BytesMut) {
-        let mut swi_msg = self.encode_uart_to_swi(&buf);
-        let _ = self.send_buf(&swi_msg);
+        
+        let port_name = &self.port;
+        let baud_rate = 230_400;
+        let stop_bits = StopBits::One;
+        let data_bits = DataBits::Seven;
+        let uart_cmd_builder = serialport::new(port_name, baud_rate)
+            .stop_bits(stop_bits)
+            .data_bits(data_bits);
+
+        let mut uart_driver = uart_cmd_builder.open().unwrap_or_else(|e| {
+            eprintln!("Failed to open port. Error: {}", e);
+            ::std::process::exit(1);
+        });
+
+        let swi_msg = self.encode_uart_to_swi(buf);
+        let _ = self.send_buf(&swi_msg, &mut uart_driver);
         thread::sleep(delay);
-        let _ = self.recv_buf(&mut swi_msg);
-        self.decode_swi_to_uart(&swi_msg, buf);
+        let _ = self.recv_buf(buf, &mut uart_driver);
     }
 
-    pub(crate) fn send_buf(&mut self, buf: &[u8]) -> Result {
-        self.uart_cmd.write(buf)?;
+    pub(crate) fn send_buf(&mut self, buf: &[u8], serial_port: &mut Box<dyn SerialPort>) -> Result {
+        
+        let send_size = serial_port.write(buf)?;
+        
+        //Because Tx line is linked with Rx line, all sent msgs are returned on the Rx line and must be cleared from the buffer
+        let mut clear_rx_line = BytesMut::new();
+        clear_rx_line.resize(send_size, 0);
+        serial_port.read_exact( &mut clear_rx_line )?;
+
         Ok(())
     }
 
-    pub(crate) fn recv_buf(&mut self, buf: &mut BytesMut) -> Result {
-        buf.resize(8,0xff);
+    pub(crate) fn recv_buf(&mut self, buf: &mut BytesMut,  serial_port: &mut Box<dyn SerialPort>) -> Result {
+        let mut encoded_msg = BytesMut::new();
+        encoded_msg.resize(ATCA_CMD_SIZE_MAX as usize,0);
+        
+        let mut transmit_flag = BytesMut::new();
+        transmit_flag.put_u8(0x88);
+        let encoded_transmit_flag = self.encode_uart_to_swi(&transmit_flag );
         
         for _retry in 0..RECV_RETRIES {
-            let read = self.uart_cmd.read(buf);
+            self.send_buf(&encoded_transmit_flag, serial_port)?;
             
-            match read {
-                Ok(cnt) => {
-                    assert!(cnt == 8);
+            let read_response = serial_port.read(&mut encoded_msg);
+            
+            match read_response {
+                Ok(cnt) if cnt == 0 => { //If the buffer is empty, wait & try again
+                },
+                Ok(cnt) if cnt > 8 => {
                     break;
                 },
-                Err(_e) => {} 
+                _ => return Err(Error::Timeout) 
             }
             
             thread::sleep(RECV_RETRY_WAIT);
         }
         
+        let mut encoded_msg_size = BytesMut::new();
+        encoded_msg_size.resize(8, 0);
+        encoded_msg_size.copy_from_slice(&encoded_msg[..8]);
+        
         let mut msg_size = BytesMut::new();
-        msg_size.resize(1,0xFF);
+        msg_size.put_u8(0xFF);
 
-        self.decode_swi_to_uart(&buf, &mut msg_size);
+        self.decode_swi_to_uart(&encoded_msg_size, &mut msg_size);
+        println!("msg_size: {:02x}", msg_size);
 
-        let count = msg_size[0] as usize;
-        if count == 0xff {
-            return Err(Error::timeout());
-        }
-        buf.reserve((count-1)*8);
-        self.uart_cmd.read( &mut buf[8..])?;
+        buf.resize(msg_size[0] as usize, 0);
+        
+        self.decode_swi_to_uart(&encoded_msg, buf);
+        println!("Message: {:02x}", buf);
+
         Ok(())
     }
 
@@ -305,7 +367,7 @@ impl Ecc {
             let bit_slice= &swi_msg[i..i+8];
             
             for bit in bit_slice.iter(){
-                if *bit == 0xFF {
+                if *bit == 0x7F {
                     *byte ^= 1;
                 }
                 *byte = byte.rotate_right(1);
