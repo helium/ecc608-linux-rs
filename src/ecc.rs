@@ -4,7 +4,7 @@ use crate::{
     Address, DataBuffer, Error, KeyConfig, Result, SlotConfig, Zone,
 };
 use bytes::{BufMut, Bytes, BytesMut};
-use serialport::{DataBits, SerialPort, StopBits};
+use serialport::{ClearBuffer, DataBits, SerialPort, StopBits};
 use sha2::{Digest, Sha256};
 use std::{thread, time::Duration};
 
@@ -18,7 +18,7 @@ pub const MAX_SLOT: u8 = 15;
 
 pub(crate) const RECV_RETRIES: u8 = 2;
 pub(crate) const RECV_RETRY_WAIT: Duration = Duration::from_millis(50);
-pub(crate) const CMD_RETRIES: u8 = 1; //TODO: Return to default val of 10
+pub(crate) const CMD_RETRIES: u8 = 10; 
 
 impl Ecc {
     pub fn from_path(path: &str, address: u16) -> Result<Self> {
@@ -30,7 +30,9 @@ impl Ecc {
     }
 
     pub fn get_info(&mut self) -> Result<Bytes> {
-        self.send_command(&EccCommand::info())
+        let ret_val = self.send_command(&EccCommand::info());
+        println!("Info success");
+        ret_val
     }
 
     /// Returns the 9 bytes that represent the serial number of the ECC. Per
@@ -180,7 +182,7 @@ impl Ecc {
             ::std::process::exit(1);
         });
         
-        // Send transmit flag to signal bus is
+        // Send transmit flag to signal bus
         let mut encoded_msg = BytesMut::new();
         encoded_msg.resize(32,0);
         let mut transmit_flag = BytesMut::new();
@@ -195,14 +197,16 @@ impl Ecc {
         decoded_msg.resize(4, 0);
         
         self.decode_swi_to_uart(&encoded_msg, &mut decoded_msg);
-        println!("Message: {:02x}", decoded_msg);
         
         thread::sleep(RECV_RETRY_WAIT);
 
         let response = EccResponse::from_bytes(&decoded_msg)?;
         match response {
             EccResponse::Error(err) => return Err(Error::ecc(err)),
-            _ => return Ok(()),
+            _ => {
+                println!("Secure chip wake success");
+                return Ok(())
+                },
         }
     }
 
@@ -219,7 +223,12 @@ impl Ecc {
             eprintln!("Failed to open port. Error: {}", e);
             ::std::process::exit(1);
         });
-        let _ = uart_cmd.write(&[0xCC]);
+
+        let mut sleep_msg = BytesMut::new();
+        sleep_msg.put_u8(0xCC);
+        let sleep_encoded = self.encode_uart_to_swi(&sleep_msg);
+
+        let _ = uart_cmd.write(&sleep_encoded);
     }
 
     pub(crate) fn send_command(&mut self, command: &EccCommand) -> Result<Bytes> {
@@ -235,6 +244,7 @@ impl Ecc {
         let mut buf = BytesMut::with_capacity(ATCA_CMD_SIZE_MAX as usize);
         for retry in 0..retries {
             buf.clear();
+            println!("Retries: {}", retry);
             
             if let Err(_err) = self.send_wake() {
                 if retry == retries {
@@ -254,12 +264,11 @@ impl Ecc {
             }
             match response {
                 EccResponse::Data(bytes) => return Ok(bytes),
-                EccResponse::Error(err) if err.is_recoverable() && retry < retries => {
-                    continue;
-                }
-                EccResponse::Error(err) => return Err(Error::ecc(err)),
+                EccResponse::Error(err) if retry >= retries => return Err(Error::ecc(err)),
+                _ => continue
             }
         }
+        println!("Out of retries: Timing out");
         Err(Error::timeout())
     }
 
@@ -277,6 +286,8 @@ impl Ecc {
             eprintln!("Failed to open port. Error: {}", e);
             ::std::process::exit(1);
         });
+        
+        let _ = uart_driver.clear(ClearBuffer::All);
 
         let swi_msg = self.encode_uart_to_swi(buf);
         let _ = self.send_buf(&swi_msg, &mut uart_driver);
@@ -304,9 +315,11 @@ impl Ecc {
         transmit_flag.put_u8(0x88);
         let encoded_transmit_flag = self.encode_uart_to_swi(&transmit_flag );
         
+        let _ = serial_port.clear(ClearBuffer::All);
+
         for _retry in 0..RECV_RETRIES {
             self.send_buf(&encoded_transmit_flag, serial_port)?;
-            
+            thread::sleep(Duration::from_micros(20_000) );
             let read_response = serial_port.read(&mut encoded_msg);
             
             match read_response {
@@ -326,15 +339,15 @@ impl Ecc {
         encoded_msg_size.copy_from_slice(&encoded_msg[..8]);
         
         let mut msg_size = BytesMut::new();
-        msg_size.put_u8(0xFF);
+        msg_size.put_u8(0);
 
         self.decode_swi_to_uart(&encoded_msg_size, &mut msg_size);
-        println!("msg_size: {:02x}", msg_size);
+        println!("recieved msg_size: {}", msg_size[0]);
 
-        buf.resize(msg_size[0] as usize, 0);
+        let _excess = encoded_msg.split_off((msg_size[0] as usize) * 8);
         
         self.decode_swi_to_uart(&encoded_msg, buf);
-        println!("Message: {:02x}", buf);
+        println!("Recieved Message: {:02x}", buf);
 
         Ok(())
     }
