@@ -252,7 +252,6 @@ impl EccResponse {
         }
         println!("Ecc Response from_bytes: {:02X?}", buf);
         if buf[0] == ATCA_RSP_SIZE_MIN {
-            println!("buf[0] matched the ATCA_RSP_SIZE_MIN");
             match buf[1] {
                 CMD_STATUS_BYTE_SUCCESS => Ok(Self::Data(Bytes::new())),
                 CMD_STATUS_BYTE_WAKE_SUCCESS => Ok(Self::Data(Bytes::new())),
@@ -265,7 +264,6 @@ impl EccResponse {
                 error => Ok(Self::Error(EccError::Unknown(error))),
             }
         } else {
-            println!("buf[0] did not match the ATCA_RSP_SIZE_MIN");
             let (buf, mut buf_crc) = buf.split_at(buf.len() - 2);
             let expected = crc(&buf);
             let actual = buf_crc.get_u16_le();

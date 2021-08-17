@@ -30,9 +30,7 @@ impl Ecc {
     }
 
     pub fn get_info(&mut self) -> Result<Bytes> {
-        let ret_val = self.send_command(&EccCommand::info());
-        println!("Info success");
-        ret_val
+        self.send_command(&EccCommand::info())
     }
 
     /// Returns the 9 bytes that represent the serial number of the ECC. Per
@@ -243,9 +241,6 @@ impl Ecc {
     ) -> Result<Bytes> {
         let mut buf = BytesMut::with_capacity(ATCA_CMD_SIZE_MAX as usize);
         for retry in 0..retries {
-            buf.clear();
-            println!("Retries: {}", retry);
-            
             if let Err(_err) = self.send_wake() {
                 if retry == retries {
                     break;
@@ -253,7 +248,10 @@ impl Ecc {
                     continue;
                 }
             }
-            
+            break;
+        }
+        for retry in 0..retries {
+            buf.clear();         
             command.bytes_into(&mut buf);
 
             self.send_recv_buf(command.duration(), &mut buf);
@@ -264,8 +262,10 @@ impl Ecc {
             }
             match response {
                 EccResponse::Data(bytes) => return Ok(bytes),
-                EccResponse::Error(err) if retry >= retries => return Err(Error::ecc(err)),
-                _ => continue
+                EccResponse::Error(err) if err.is_recoverable() && retry < retries => {
+                    continue;
+                }
+                EccResponse::Error(err) => return Err(Error::ecc(err)),
             }
         }
         println!("Out of retries: Timing out");
@@ -298,7 +298,10 @@ impl Ecc {
     pub(crate) fn send_buf(&mut self, buf: &[u8], serial_port: &mut Box<dyn SerialPort>) -> Result {
         
         let send_size = serial_port.write(buf)?;
-        
+
+        //Each byte takes ~45us to transmit, so we must wait for the transmission to finish before proceeding
+        let uart_tx_time = Duration::from_micros( (buf.len() * 45) as u64); 
+        thread::sleep(uart_tx_time);
         //Because Tx line is linked with Rx line, all sent msgs are returned on the Rx line and must be cleared from the buffer
         let mut clear_rx_line = BytesMut::new();
         clear_rx_line.resize(send_size, 0);
@@ -319,7 +322,7 @@ impl Ecc {
 
         for _retry in 0..RECV_RETRIES {
             self.send_buf(&encoded_transmit_flag, serial_port)?;
-            thread::sleep(Duration::from_micros(20_000) );
+            thread::sleep(Duration::from_micros(32_000) );
             let read_response = serial_port.read(&mut encoded_msg);
             
             match read_response {
