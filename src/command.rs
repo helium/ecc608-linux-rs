@@ -231,10 +231,10 @@ impl EccCommand {
 
     pub fn duration(&self) -> Duration {
         let micros = match self {
-            Self::Info => 500,
+            Self::Info => 5_000,
             Self::GenKey { .. } => 59_000,
-            Self::Read { .. } => 800,
-            Self::Write { .. } => 8000,
+            Self::Read { .. } => 8_000,
+            Self::Write { .. } => 8_000,
             // ecc608b increases the default lock duration of 15_000 by about 30%
             Self::Lock { .. } => 19_500,
             Self::Nonce { .. } => 17_000,
@@ -247,7 +247,12 @@ impl EccCommand {
 
 impl EccResponse {
     pub fn from_bytes(buf: &[u8]) -> Result<Self> {
+        if buf.len() == 0 {
+            return Ok(Self::Error(EccError::ParseError));
+        }
+        println!("Ecc Response from_bytes: {:02X?}", buf);
         if buf[0] == ATCA_RSP_SIZE_MIN {
+            println!("buf[0] matched the ATCA_RSP_SIZE_MIN");
             match buf[1] {
                 CMD_STATUS_BYTE_SUCCESS => Ok(Self::Data(Bytes::new())),
                 CMD_STATUS_BYTE_WAKE_SUCCESS => Ok(Self::Data(Bytes::new())),
@@ -260,10 +265,12 @@ impl EccResponse {
                 error => Ok(Self::Error(EccError::Unknown(error))),
             }
         } else {
+            println!("buf[0] did not match the ATCA_RSP_SIZE_MIN");
             let (buf, mut buf_crc) = buf.split_at(buf.len() - 2);
             let expected = crc(&buf);
             let actual = buf_crc.get_u16_le();
             if expected != actual {
+                println!("Expected CRC != Actual CRC");
                 return Err(Error::crc(expected, actual));
             }
             Ok(Self::Data(Bytes::copy_from_slice(&buf[1..])))
