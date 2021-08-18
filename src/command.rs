@@ -232,13 +232,13 @@ impl EccCommand {
     pub fn duration(&self) -> Duration {
         let micros = match self {
             Self::Info => 5_000,
-            Self::GenKey { .. } => 59_000,
+            Self::GenKey { .. } => 85_000,
             Self::Read { .. } => 8_000,
             Self::Write { .. } => 8_000,
             // ecc608b increases the default lock duration of 15_000 by about 30%
             Self::Lock { .. } => 19_500,
-            Self::Nonce { .. } => 17_000,
-            Self::Sign { .. } => 64_000,
+            Self::Nonce { .. } => 17_000,   //Nonce and sign may have to have their delays increased. 
+            Self::Sign { .. } => 64_000,    //TODO: Test
             Self::Random => 15_000,
         };
         Duration::from_micros(micros)
