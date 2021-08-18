@@ -250,7 +250,6 @@ impl EccResponse {
         if buf.len() == 0 {
             return Ok(Self::Error(EccError::ParseError));
         }
-        println!("Ecc Response from_bytes: {:02X?}", buf);
         if buf[0] == ATCA_RSP_SIZE_MIN {
             match buf[1] {
                 CMD_STATUS_BYTE_SUCCESS => Ok(Self::Data(Bytes::new())),
@@ -268,7 +267,6 @@ impl EccResponse {
             let expected = crc(&buf);
             let actual = buf_crc.get_u16_le();
             if expected != actual {
-                println!("Expected CRC != Actual CRC");
                 return Err(Error::crc(expected, actual));
             }
             Ok(Self::Data(Bytes::copy_from_slice(&buf[1..])))

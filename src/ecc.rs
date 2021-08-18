@@ -201,10 +201,7 @@ impl Ecc {
         let response = EccResponse::from_bytes(&decoded_msg)?;
         match response {
             EccResponse::Error(err) => return Err(Error::ecc(err)),
-            _ => {
-                println!("Secure chip wake success");
-                return Ok(())
-                },
+            _ => return Ok(()),
         }
     }
 
@@ -268,7 +265,6 @@ impl Ecc {
                 EccResponse::Error(err) => return Err(Error::ecc(err)),
             }
         }
-        println!("Out of retries: Timing out");
         Err(Error::timeout())
     }
 
@@ -345,12 +341,10 @@ impl Ecc {
         msg_size.put_u8(0);
 
         self.decode_swi_to_uart(&encoded_msg_size, &mut msg_size);
-        println!("recieved msg_size: {}", msg_size[0]);
 
         let _excess = encoded_msg.split_off((msg_size[0] as usize) * 8);
         
         self.decode_swi_to_uart(&encoded_msg, buf);
-        println!("Recieved Message: {:02x}", buf);
 
         Ok(())
     }
