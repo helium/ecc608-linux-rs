@@ -260,7 +260,7 @@ impl EccResponse {
             }
         } else {
             let (buf, mut buf_crc) = buf.split_at(buf.len() - 2);
-            let expected = crc(&buf);
+            let expected = crc(buf);
             let actual = buf_crc.get_u16_le();
             if expected != actual {
                 return Err(Error::crc(expected, actual));
