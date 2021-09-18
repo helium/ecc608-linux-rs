@@ -147,11 +147,11 @@ impl Ecc {
     }
 
     fn send_wake(&mut self) {
-        let _ = self.send_buf(&[0]);
+        let _ = self.send_buf(0, &[0]);
     }
 
     fn send_sleep(&mut self) {
-        let _ = self.send_buf(&[1]);
+        let _ = self.send_buf(self.address, &[1]);
     }
 
     pub(crate) fn send_command(&mut self, command: &EccCommand) -> Result<Bytes> {
@@ -196,15 +196,15 @@ impl Ecc {
     }
 
     fn send_recv_buf(&mut self, delay: Duration, buf: &mut BytesMut) -> Result {
-        self.send_buf(&buf[..])?;
+        self.send_buf(self.address, &buf[..])?;
         thread::sleep(delay);
         self.recv_buf(buf)
     }
 
-    pub(crate) fn send_buf(&mut self, buf: &[u8]) -> Result {
+    pub(crate) fn send_buf(&mut self, address: u16, buf: &[u8]) -> Result {
         let write_msg = i2c_linux::Message::Write {
-            address: self.address,
-            data: &buf,
+            address,
+            data: buf,
             flags: Default::default(),
         };
 
