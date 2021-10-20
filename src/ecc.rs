@@ -128,6 +128,14 @@ impl Ecc {
         )
     }
 
+    pub fn ecdh(&mut self, key_slot: u8, x: &[u8], y: &[u8]) -> Result<Bytes> {
+        self.send_command(&EccCommand::ecdh(
+            Bytes::copy_from_slice(x),
+            Bytes::copy_from_slice(y),
+            key_slot,
+        ))
+    }
+
     pub fn random(&mut self) -> Result<Bytes> {
         self.send_command(&EccCommand::random())
     }
