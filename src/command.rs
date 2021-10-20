@@ -1,9 +1,9 @@
 use crate::{
     constants::{
-        ATCA_GENKEY, ATCA_INFO, ATCA_LOCK, ATCA_NONCE, ATCA_RANDOM, ATCA_READ, ATCA_RSP_SIZE_MIN,
-        ATCA_SIGN, ATCA_WRITE, CMD_STATUS_BYTE_COMM, CMD_STATUS_BYTE_ECC, CMD_STATUS_BYTE_EXEC,
-        CMD_STATUS_BYTE_PARSE, CMD_STATUS_BYTE_SELF_TEST, CMD_STATUS_BYTE_SUCCESS,
-        CMD_STATUS_BYTE_WATCHDOG,
+        ATCA_ECDH, ATCA_GENKEY, ATCA_INFO, ATCA_LOCK, ATCA_NONCE, ATCA_RANDOM, ATCA_READ,
+        ATCA_RSP_SIZE_MIN, ATCA_SIGN, ATCA_WRITE, CMD_STATUS_BYTE_COMM, CMD_STATUS_BYTE_ECC,
+        CMD_STATUS_BYTE_EXEC, CMD_STATUS_BYTE_PARSE, CMD_STATUS_BYTE_SELF_TEST,
+        CMD_STATUS_BYTE_SUCCESS, CMD_STATUS_BYTE_WATCHDOG,
     },
     Address, DataBuffer, Error, Result, Zone,
 };
@@ -36,6 +36,7 @@ pub enum EccCommand {
     Random,
     Nonce { target: DataBuffer, data: Bytes },
     Sign { source: DataBuffer, key_slot: u8 },
+    Ecdh { x: Bytes, y: Bytes, key_slot: u8 },
 }
 
 bitfield! {
@@ -176,6 +177,10 @@ impl EccCommand {
         Self::Sign { source, key_slot }
     }
 
+    pub fn ecdh(x: Bytes, y: Bytes, key_slot: u8) -> Self {
+        Self::Ecdh { key_slot, x, y }
+    }
+
     pub fn bytes_into(&self, bytes: &mut BytesMut) {
         bytes.put_slice(&[0x03, 0x00]);
         match self {
@@ -224,6 +229,11 @@ impl EccCommand {
                 param1.set_external(true);
                 put_cmd!(bytes, ATCA_SIGN, u8::from(param1), (*key_slot as u16) << 8);
             }
+            Self::Ecdh { x, y, key_slot } => {
+                put_cmd!(bytes, ATCA_ECDH, 0, *key_slot as u16);
+                bytes.extend_from_slice(x);
+                bytes.extend_from_slice(y)
+            }
         }
         bytes[1] = (bytes.len() + 1) as u8;
         bytes.put_u16_le(crc(&bytes[1..]))
@@ -239,6 +249,7 @@ impl EccCommand {
             Self::Lock { .. } => 19_500,
             Self::Nonce { .. } => 17_000,
             Self::Sign { .. } => 64_000,
+            Self::Ecdh { .. } => 28_000,
             Self::Random => 15_000,
         };
         Duration::from_micros(micros)

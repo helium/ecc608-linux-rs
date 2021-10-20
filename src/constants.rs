@@ -22,3 +22,4 @@ pub(crate) const ATCA_LOCK: u8 = 0x17;
 pub(crate) const ATCA_RANDOM: u8 = 0x1B;
 pub(crate) const ATCA_GENKEY: u8 = 0x40;
 pub(crate) const ATCA_SIGN: u8 = 0x41;
+pub(crate) const ATCA_ECDH: u8 = 0x43;
