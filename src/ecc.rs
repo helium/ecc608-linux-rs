@@ -165,7 +165,7 @@ impl Ecc {
             .data_bits(data_bits);
 
         let mut uart_wake = uart_wake_builder.open().unwrap_or_else(|e| {
-            eprintln!("Failed to open port. Error: {}", e);
+            eprintln!("Failed to open port {}. Error: {}", port_name,e);
             ::std::process::exit(1);
         });
         let _ = uart_wake.write(&[0]);
@@ -184,7 +184,7 @@ impl Ecc {
             .data_bits(data_bits);
 
         let mut uart_cmd = uart_cmd_builder.open().unwrap_or_else(|e| {
-            eprintln!("Failed to open port. Error: {}", e);
+            eprintln!("Failed to open port {}. Error: {}", port_name,e);
             ::std::process::exit(1);
         });
         
@@ -223,7 +223,7 @@ impl Ecc {
             .data_bits(data_bits);
 
         let mut uart_cmd = uart_cmd_builder.open().unwrap_or_else(|e| {
-            eprintln!("Failed to open port. Error: {}", e);
+            eprintln!("Failed to open port {}. Error: {}", port_name,e);
             ::std::process::exit(1);
         });
 
@@ -287,7 +287,7 @@ impl Ecc {
             .data_bits(data_bits);
 
         let mut uart_driver = uart_cmd_builder.open().unwrap_or_else(|e| {
-            eprintln!("Failed to open port. Error: {}", e);
+            eprintln!("Failed to open port {}. Error: {}", port_name,e);
             ::std::process::exit(1);
         });
         

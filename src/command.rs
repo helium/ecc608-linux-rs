@@ -248,8 +248,8 @@ impl EccCommand {
             // ecc608b increases the default lock duration of 15_000 by about 30%
             Self::Lock { .. } => 19_500,
             Self::Nonce { .. } => 17_000,
-            Self::Sign { .. } => 64_000,
-            Self::Ecdh { .. } => 28_000,
+            Self::Sign { .. } => 80_000,
+            Self::Ecdh { .. } => 42_000,
             Self::Random => 15_000,
         };
         Duration::from_micros(micros)
