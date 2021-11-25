@@ -1,3 +1,4 @@
+use crate::command::EccError;
 use crate::constants::{ATCA_CMD_SIZE_MAX, WAKE_DELAY};
 use crate::{
     command::{EccCommand, EccResponse},
@@ -117,16 +118,37 @@ impl Ecc {
 
     pub fn sign(&mut self, key_slot: u8, data: &[u8]) -> Result<Bytes> {
         let digest = Sha256::digest(data);
-        let _ = self.send_command_retries(
-            &EccCommand::nonce(DataBuffer::MessageDigest, Bytes::copy_from_slice(&digest)),
-            false,
-            1,
-        )?;
-        self.send_command_retries(
-            &EccCommand::sign(DataBuffer::MessageDigest, key_slot),
-            true,
-            1,
-        )
+        for attempts in 0..4 {
+            let mut response = self.send_command_retries(
+                &EccCommand::nonce(DataBuffer::MessageDigest, Bytes::copy_from_slice(&digest)),
+                false,
+                1,
+            );
+            match response{
+                Ok(_) => (),
+                Err(_) if attempts < 3 => {
+                    self.send_sleep();
+                    continue;
+                }
+                Err(_) => return response,
+            }
+            response = self.send_command_retries(
+                &EccCommand::sign(DataBuffer::MessageDigest, key_slot),
+                true,
+                1,
+            );
+            
+            match response{
+                Ok(_) => return response,
+                Err(_) if attempts < 3 => {
+                    self.send_sleep();
+                    continue;
+                }
+                Err(_) => return response,
+            }
+        }
+        // This should never hit as a result of the match statement
+        Err(Error::Timeout)
     }
 
     pub fn ecdh(&mut self, key_slot: u8, x: &[u8], y: &[u8]) -> Result<Bytes> {
@@ -206,9 +228,9 @@ impl Ecc {
         
         thread::sleep(RECV_RETRY_WAIT);
 
-        let response = EccResponse::from_bytes(&decoded_msg)?;
+        let response = EccResponse::from_bytes(&decoded_msg);
         match response {
-            EccResponse::Error(err) => return Err(Error::ecc(err)),
+            Err(e) => return Err(e),
             _ => return Ok(()),
         }
     }
@@ -245,38 +267,67 @@ impl Ecc {
         retries: u8,
     ) -> Result<Bytes> {
         let mut buf = BytesMut::with_capacity(ATCA_CMD_SIZE_MAX as usize);
-        for retry in 0..retries {
-            if let Err(_err) = self.send_wake() {
-                if retry == retries {
-                    break;
-                } else {
-                    continue;
-                }
-            }
-            break;
-        }
-        for retry in 0..retries {
-            buf.clear();         
-            command.bytes_into(&mut buf);
-
-            self.send_recv_buf(command.duration(), &mut buf);
-
-            let response = EccResponse::from_bytes(&buf[..])?;
-            if sleep {
-                self.send_sleep();
-            }
+        for mut retry in 0..retries {
+            let mut reset_command = false;
+            let response = self.send_wake();
+            
             match response {
-                EccResponse::Data(bytes) => return Ok(bytes),
-                EccResponse::Error(err) if err.is_recoverable() && retry < retries => {
-                    continue;
+                Ok(_) => (),
+                Err(_err) if retry < retries => {
+                    thread::sleep(Duration::from_millis(100));
+                    continue
+                },
+                Err(err) =>{
+                    return Err(err )
                 }
-                EccResponse::Error(err) => return Err(Error::ecc(err)),
             }
+            for retry_cmd in retry..retries {
+                buf.clear();         
+                command.bytes_into(&mut buf);
+                
+                if let Err(_) = self.send_recv_buf(command.duration(), &mut buf){
+                    if retry_cmd == retries {
+                        break;
+                    } else {
+                        thread::sleep(Duration::from_millis(100));
+                        retry += 1;
+                        continue;
+                    }    
+                }
+                
+                let response = EccResponse::from_bytes(&buf[..]);
+                if sleep {
+                    self.send_sleep();
+                }
+                match response {
+                    Ok(EccResponse::Data(bytes)) => return Ok(bytes),
+                    Ok(EccResponse::Error(err)) if err.is_recoverable() && retry_cmd < retries => {
+                        thread::sleep(Duration::from_millis(100));
+                        retry += 1;
+                        continue;
+                    }
+                    Ok(EccResponse::Error(err)) if err == EccError::ParseError && retry_cmd < retries =>{ 
+                        reset_command = true;
+                        self.send_sleep();
+                        thread::sleep(Duration::from_millis(100));
+                        break;
+                    },
+                    Ok(EccResponse::Error(err)) => {return Err(Error::ecc(err))},
+                    Err(_) if retry_cmd < retries => {
+                        thread::sleep(Duration::from_millis(100));
+                        retry += 1;
+                        continue;
+                    }
+                    Err(e) =>{return Err(e)},
+                }
+            }
+            if reset_command {continue}
+            else {break}
         }
         Err(Error::timeout())
     }
 
-    fn send_recv_buf(&mut self, delay: Duration, buf: &mut BytesMut) {
+    fn send_recv_buf(&mut self, delay: Duration, buf: &mut BytesMut) -> Result {
         
         let port_name = &self.port;
         let baud_rate = 230_400;
@@ -294,9 +345,9 @@ impl Ecc {
         let _ = uart_driver.clear(ClearBuffer::All);
 
         let swi_msg = self.encode_uart_to_swi(buf);
-        let _ = self.send_buf(&swi_msg, &mut uart_driver);
+        self.send_buf(&swi_msg, &mut uart_driver)?;
         thread::sleep(delay);
-        let _ = self.recv_buf(buf, &mut uart_driver);
+        self.recv_buf(buf, &mut uart_driver)
     }
 
     pub(crate) fn send_buf(&mut self, buf: &[u8], serial_port: &mut Box<dyn SerialPort>) -> Result {
@@ -309,7 +360,7 @@ impl Ecc {
         //Because Tx line is linked with Rx line, all sent msgs are returned on the Rx line and must be cleared from the buffer
         let mut clear_rx_line = BytesMut::new();
         clear_rx_line.resize(send_size, 0);
-        serial_port.read_exact( &mut clear_rx_line )?;
+        let _ = serial_port.read_exact( &mut clear_rx_line );
 
         Ok(())
     }
@@ -324,7 +375,7 @@ impl Ecc {
         
         let _ = serial_port.clear(ClearBuffer::All);
 
-        for _retry in 0..RECV_RETRIES {
+        for retry in 0..RECV_RETRIES {
             self.send_buf(&encoded_transmit_flag, serial_port)?;
             thread::sleep(Duration::from_micros(32_000) );
             let read_response = serial_port.read(&mut encoded_msg);
@@ -335,7 +386,8 @@ impl Ecc {
                 Ok(cnt) if cnt > 8 => {
                     break;
                 },
-                _ => return Err(Error::Timeout) 
+                _ if retry != RECV_RETRIES => continue,
+                _  => return Err(Error::Timeout) 
             }
             
             thread::sleep(RECV_RETRY_WAIT);
@@ -349,6 +401,10 @@ impl Ecc {
         msg_size.put_u8(0);
 
         self.decode_swi_to_uart(&encoded_msg_size, &mut msg_size);
+
+        if u16::from(msg_size[0]) * 8 > ATCA_CMD_SIZE_MAX{
+            return Err(Error::Timeout)
+        }
 
         let _excess = encoded_msg.split_off((msg_size[0] as usize) * 8);
         

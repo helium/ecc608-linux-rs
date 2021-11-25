@@ -258,7 +258,7 @@ impl EccCommand {
 
 impl EccResponse {
     pub fn from_bytes(buf: &[u8]) -> Result<Self> {
-        if buf.len() == 0 {
+        if buf.len() < ATCA_RSP_SIZE_MIN as usize {
             return Ok(Self::Error(EccError::ParseError));
         }
         if buf[0] == ATCA_RSP_SIZE_MIN {
