@@ -343,7 +343,6 @@ impl Ecc {
         });
         
         let _ = uart_driver.clear(ClearBuffer::All);
-
         let swi_msg = self.encode_uart_to_swi(buf);
         self.send_buf(&swi_msg, &mut uart_driver)?;
         thread::sleep(delay);
@@ -376,14 +375,14 @@ impl Ecc {
         let _ = serial_port.clear(ClearBuffer::All);
 
         for retry in 0..RECV_RETRIES {
-            self.send_buf(&encoded_transmit_flag, serial_port)?;
+            serial_port.write(&encoded_transmit_flag)?;
             thread::sleep(Duration::from_micros(32_000) );
             let read_response = serial_port.read(&mut encoded_msg);
             
             match read_response {
-                Ok(cnt) if cnt == 0 => { //If the buffer is empty, wait & try again
+                Ok(cnt) if cnt == 8 => { //If the buffer is empty except for the transmit flag, wait & try again
                 },
-                Ok(cnt) if cnt > 8 => {
+                Ok(cnt) if cnt > 16 => {
                     break;
                 },
                 _ if retry != RECV_RETRIES => continue,
@@ -392,23 +391,25 @@ impl Ecc {
             
             thread::sleep(RECV_RETRY_WAIT);
         }
-        
-        let mut encoded_msg_size = BytesMut::new();
-        encoded_msg_size.resize(8, 0);
-        encoded_msg_size.copy_from_slice(&encoded_msg[..8]);
-        
-        let mut msg_size = BytesMut::new();
-        msg_size.put_u8(0);
 
-        self.decode_swi_to_uart(&encoded_msg_size, &mut msg_size);
+        let mut decoded_message = BytesMut::new();
+        decoded_message.resize((ATCA_CMD_SIZE_MAX) as usize, 0);   
 
-        if u16::from(msg_size[0]) * 8 > ATCA_CMD_SIZE_MAX{
+        self.decode_swi_to_uart(&encoded_msg, &mut decoded_message);
+
+        let encoded_msg_size = decoded_message[1];
+
+        if encoded_msg_size as u16 > ATCA_CMD_SIZE_MAX/8{
             return Err(Error::Timeout)
         }
 
-        let _excess = encoded_msg.split_off((msg_size[0] as usize) * 8);
-        
-        self.decode_swi_to_uart(&encoded_msg, buf);
+        buf.resize(encoded_msg_size as usize, 0);
+
+        // Remove the transmit flag at the beginning & the excess buffer space at the end
+        let _transmit_flag = decoded_message.split_to(1);
+        decoded_message.truncate(encoded_msg_size as usize);
+
+        buf.copy_from_slice(&decoded_message);
 
         Ok(())
     }
@@ -441,7 +442,7 @@ impl Ecc {
             let bit_slice= &swi_msg[i..i+8];
             
             for bit in bit_slice.iter(){
-                if *bit == 0x7F {
+                if *bit == 0x7F || *bit == 0x7E {
                     *byte ^= 1;
                 }
                 *byte = byte.rotate_right(1);
