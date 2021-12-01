@@ -267,8 +267,7 @@ impl Ecc {
         retries: u8,
     ) -> Result<Bytes> {
         let mut buf = BytesMut::with_capacity(ATCA_CMD_SIZE_MAX as usize);
-        for mut retry in 0..retries {
-            let mut reset_command = false;
+        for retry in 0..retries {
             let response = self.send_wake();
             
             match response {
@@ -281,48 +280,40 @@ impl Ecc {
                     return Err(err )
                 }
             }
-            for retry_cmd in retry..retries {
-                buf.clear();         
-                command.bytes_into(&mut buf);
-                
-                if let Err(_) = self.send_recv_buf(command.duration(), &mut buf){
-                    if retry_cmd == retries {
-                        break;
-                    } else {
-                        thread::sleep(Duration::from_millis(100));
-                        retry += 1;
-                        continue;
-                    }    
-                }
-                
-                let response = EccResponse::from_bytes(&buf[..]);
-                if sleep {
-                    self.send_sleep();
-                }
-                match response {
-                    Ok(EccResponse::Data(bytes)) => return Ok(bytes),
-                    Ok(EccResponse::Error(err)) if err.is_recoverable() && retry_cmd < retries => {
-                        thread::sleep(Duration::from_millis(100));
-                        retry += 1;
-                        continue;
-                    }
-                    Ok(EccResponse::Error(err)) if err == EccError::ParseError && retry_cmd < retries =>{ 
-                        reset_command = true;
-                        self.send_sleep();
-                        thread::sleep(Duration::from_millis(100));
-                        break;
-                    },
-                    Ok(EccResponse::Error(err)) => {return Err(Error::ecc(err))},
-                    Err(_) if retry_cmd < retries => {
-                        thread::sleep(Duration::from_millis(100));
-                        retry += 1;
-                        continue;
-                    }
-                    Err(e) =>{return Err(e)},
-                }
+
+            buf.clear();         
+            command.bytes_into(&mut buf);
+            
+            if let Err(_) = self.send_recv_buf(command.duration(), &mut buf){
+                if retry == retries {
+                    break;
+                } else {
+                    thread::sleep(Duration::from_millis(100));
+                    continue;
+                }    
             }
-            if reset_command {continue}
-            else {break}
+            
+            let response = EccResponse::from_bytes(&buf[..]);
+            if sleep {
+                self.send_sleep();
+            }
+            match response {
+                Ok(EccResponse::Data(bytes)) => return Ok(bytes),
+                Ok(EccResponse::Error(err)) if err.is_recoverable() && retry < retries => {
+                    thread::sleep(Duration::from_millis(100));
+                    continue;
+                }
+                Ok(EccResponse::Error(err)) if err == EccError::ParseError && retry < retries =>{ 
+                    thread::sleep(Duration::from_millis(100));
+                    break;
+                },
+                Ok(EccResponse::Error(err)) => {return Err(Error::ecc(err))},
+                Err(_) if retry < retries => {
+                    thread::sleep(Duration::from_millis(100));
+                    continue;
+                }
+                Err(e) =>{return Err(e)},
+            }
         }
         Err(Error::timeout())
     }
