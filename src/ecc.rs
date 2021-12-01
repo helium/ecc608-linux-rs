@@ -211,24 +211,24 @@ impl Ecc {
         });
         
         // Send transmit flag to signal bus
-        let mut encoded_msg = BytesMut::new();
-        encoded_msg.resize(32,0);
         let mut transmit_flag = BytesMut::new();
         transmit_flag.put_u8(0x88);
         let encoded_transmit_flag = self.encode_uart_to_swi(&transmit_flag );
-        self.send_buf(&encoded_transmit_flag, &mut uart_cmd)?;
-        thread::sleep(Duration::from_micros(3_000) );
-
+        uart_cmd.write(&encoded_transmit_flag)?;
+        thread::sleep(Duration::from_micros(5_000) );
+        
+        let mut encoded_msg = BytesMut::new();
+        encoded_msg.resize(40,0);
         let _ = uart_cmd.read(&mut encoded_msg);
 
         let mut decoded_msg = BytesMut::new();
-        decoded_msg.resize(4, 0);
+        decoded_msg.resize(5, 0);
         
         self.decode_swi_to_uart(&encoded_msg, &mut decoded_msg);
         
         thread::sleep(RECV_RETRY_WAIT);
 
-        let response = EccResponse::from_bytes(&decoded_msg);
+        let response = EccResponse::from_bytes(&decoded_msg[1..]);
         match response {
             Err(e) => return Err(e),
             _ => return Ok(()),
@@ -376,7 +376,7 @@ impl Ecc {
 
         for retry in 0..RECV_RETRIES {
             serial_port.write(&encoded_transmit_flag)?;
-            thread::sleep(Duration::from_micros(32_000) );
+            thread::sleep(Duration::from_micros(40_000) );
             let read_response = serial_port.read(&mut encoded_msg);
             
             match read_response {
