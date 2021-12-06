@@ -226,8 +226,6 @@ impl Ecc {
         
         self.decode_swi_to_uart(&encoded_msg, &mut decoded_msg);
         
-        thread::sleep(RECV_RETRY_WAIT);
-
         let response = EccResponse::from_bytes(&decoded_msg[1..]);
         match response {
             Err(e) => return Err(e),
