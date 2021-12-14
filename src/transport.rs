@@ -39,7 +39,8 @@ impl EccTransport {
     }
 
     pub fn send_wake(&mut self) -> Result {
-        self.send_buf(0, &[0])
+        let _ = self.send_buf(0, &[0]);
+        Ok(())
     }
 
     pub fn send_sleep(&mut self) {

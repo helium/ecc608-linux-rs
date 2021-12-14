@@ -1,5 +1,4 @@
-use crate::command::EccError;
-use crate::constants::ATCA_CMD_SIZE_MAX;
+use crate::constants::{ATCA_CMD_SIZE_MAX, WAKE_DELAY};
 use crate::transport::EccTransport;
 use crate::{
     command::{EccCommand, EccResponse},
@@ -115,37 +114,16 @@ impl Ecc {
 
     pub fn sign(&mut self, key_slot: u8, data: &[u8]) -> Result<Bytes> {
         let digest = Sha256::digest(data);
-        for attempts in 0..4 {
-            let mut response = self.send_command_retries(
-                &EccCommand::nonce(DataBuffer::MessageDigest, Bytes::copy_from_slice(&digest)),
-                false,
-                1,
-            );
-            match response{
-                Ok(_) => (),
-                Err(_) if attempts < 3 => {
-                    self.transport.send_sleep();
-                    continue;
-                }
-                Err(_) => return response,
-            }
-            response = self.send_command_retries(
-                &EccCommand::sign(DataBuffer::MessageDigest, key_slot),
-                true,
-                1,
-            );
-            
-            match response{
-                Ok(_) => return response,
-                Err(_) if attempts < 3 => {
-                    self.transport.send_sleep();
-                    continue;
-                }
-                Err(_) => return response,
-            }
-        }
-        // This should never hit as a result of the match statement
-        Err(Error::Timeout)
+        let _ = self.send_command_retries(
+            &EccCommand::nonce(DataBuffer::MessageDigest, Bytes::copy_from_slice(&digest)),
+            false,
+            1,
+        )?;
+        self.send_command_retries(
+            &EccCommand::sign(DataBuffer::MessageDigest, key_slot),
+            true,
+            1,
+        )
     }
 
     pub fn ecdh(&mut self, key_slot: u8, x: &[u8], y: &[u8]) -> Result<Bytes> {
@@ -188,10 +166,14 @@ impl Ecc {
         for retry in 0..retries {
             let response = self.transport.send_wake();
             
+            if cfg!(feature = "i2c"){           //SWI has wake delay built into interaction
+                thread::sleep(WAKE_DELAY);
+            }
+
             match response {
                 Ok(_) => (),
                 Err(_err) if retry < retries => {
-                    thread::sleep(Duration::from_millis(100));
+                    thread::sleep(Duration::from_millis(65));
                     continue
                 },
                 Err(err) =>{
@@ -202,35 +184,25 @@ impl Ecc {
             buf.clear();         
             command.bytes_into(&mut buf);
             
-            if let Err(_) = self.transport.send_recv_buf(command.duration(), &mut buf){
+            if let Err(_err) = self.transport.send_recv_buf(command.duration(), &mut buf) {
                 if retry == retries {
                     break;
                 } else {
-                    thread::sleep(Duration::from_millis(100));
+                    thread::sleep(Duration::from_millis(65));
                     continue;
                 }    
             }
             
-            let response = EccResponse::from_bytes(&buf[..]);
+            let response = EccResponse::from_bytes(&buf[..])?;
             if sleep {
                 self.transport.send_sleep();
             }
             match response {
-                Ok(EccResponse::Data(bytes)) => return Ok(bytes),
-                Ok(EccResponse::Error(err)) if err.is_recoverable() && retry < retries => {
-                    thread::sleep(Duration::from_millis(100));
+                EccResponse::Data(bytes) => return Ok(bytes),
+                EccResponse::Error(err) if err.is_recoverable() && retry < retries => {
                     continue;
                 }
-                Ok(EccResponse::Error(err)) if err == EccError::ParseError && retry < retries =>{ 
-                    thread::sleep(Duration::from_millis(100));
-                    break;
-                },
-                Ok(EccResponse::Error(err)) => {return Err(Error::ecc(err))},
-                Err(_) if retry < retries => {
-                    thread::sleep(Duration::from_millis(100));
-                    continue;
-                }
-                Err(e) =>{return Err(e)},
+                EccResponse::Error(err) => return Err(Error::ecc(err)),
             }
         }
         Err(Error::timeout())

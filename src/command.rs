@@ -1,7 +1,7 @@
 use crate::{
     constants::{
-        ATCA_ECDH, ATCA_GENKEY, ATCA_INFO, ATCA_LOCK, ATCA_NONCE, ATCA_RANDOM, ATCA_READ,
-        ATCA_RSP_SIZE_MIN, ATCA_SIGN, ATCA_WRITE, CMD_STATUS_BYTE_COMM, CMD_STATUS_BYTE_ECC,
+        ATCA_COMMAND_FLAG, ATCA_ECDH, ATCA_GENKEY, ATCA_INFO, ATCA_LOCK, ATCA_NONCE, ATCA_RANDOM,
+        ATCA_READ, ATCA_RSP_SIZE_MIN, ATCA_SIGN, ATCA_WRITE, CMD_STATUS_BYTE_COMM, CMD_STATUS_BYTE_ECC,
         CMD_STATUS_BYTE_EXEC, CMD_STATUS_BYTE_PARSE, CMD_STATUS_BYTE_SELF_TEST,
         CMD_STATUS_BYTE_SUCCESS, CMD_STATUS_BYTE_WAKE_SUCCESS, CMD_STATUS_BYTE_WATCHDOG,
     },
@@ -182,7 +182,7 @@ impl EccCommand {
     }
 
     pub fn bytes_into(&self, bytes: &mut BytesMut) {
-        bytes.put_slice(&[0x77, 0x00]);
+        bytes.put_slice(&[ATCA_COMMAND_FLAG, 0x00]);
         match self {
             Self::Info => {
                 put_cmd!(bytes, ATCA_INFO, 0, 0);
@@ -236,9 +236,10 @@ impl EccCommand {
             }
         }
         bytes[1] = (bytes.len() + 1) as u8;
-        bytes.put_u16_le(crc(&bytes[1..]));
+        bytes.put_u16_le(crc(&bytes[1..]))
     }
 
+    #[cfg(feature = "swi")]
     pub fn duration(&self) -> Duration {
         let micros = match self {
             Self::Info => 5_000,
@@ -254,13 +255,27 @@ impl EccCommand {
         };
         Duration::from_micros(micros)
     }
+    
+    #[cfg(feature = "i2c")]
+    pub fn duration(&self) -> Duration {
+        let micros = match self {
+            Self::Info => 500,
+            Self::GenKey { .. } => 59_000,
+            Self::Read { .. } => 800,
+            Self::Write { .. } => 8000,
+            // ecc608b increases the default lock duration of 15_000 by about 30%
+            Self::Lock { .. } => 19_500,
+            Self::Nonce { .. } => 17_000,
+            Self::Sign { .. } => 64_000,
+            Self::Ecdh { .. } => 28_000,
+            Self::Random => 15_000,
+        };
+        Duration::from_micros(micros)
+    }
 }
 
 impl EccResponse {
     pub fn from_bytes(buf: &[u8]) -> Result<Self> {
-        if buf.len() < ATCA_RSP_SIZE_MIN as usize {
-            return Ok(Self::Error(EccError::ParseError));
-        }
         if buf[0] == ATCA_RSP_SIZE_MIN {
             match buf[1] {
                 CMD_STATUS_BYTE_SUCCESS => Ok(Self::Data(Bytes::new())),
