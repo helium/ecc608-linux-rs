@@ -9,10 +9,15 @@ repository = "https://github.com/tektelic/ecc608-linux-swi-rs"
 readme = "README.md"
 
 [dependencies]
-serialport = {version = "4", default-features = false }
+serialport = {version = "4", default-features = false, optional = true }
+i2c-linux = {version = "0", optional = true }
 sha2 = "0"
 bytes = "1"
 bitfield = "0"
 serde = "1"
 serde_derive = "1"
 thiserror = "1"
+
+[features]
+swi = ["serialport"]
+i2c = ["i2c-linux"]

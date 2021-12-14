@@ -1,5 +1,7 @@
+#[cfg(feature = "swi")]
 use std::time::Duration;
 
+#[cfg(feature = "swi")]
 pub(crate) const WAKE_DELAY: Duration = Duration::from_micros(1300);
 
 pub(crate) const ATCA_CMD_SIZE_MAX: u16 = 1208; // Originally this was 4*36 + 7. This was changed to be 8x as big to accomodate SWI

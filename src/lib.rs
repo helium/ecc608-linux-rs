@@ -5,6 +5,7 @@ mod ecc;
 mod error;
 mod key_config;
 mod slot_config;
+mod transport;
 
 pub use error::Error;
 pub type Result<T = ()> = std::result::Result<T, Error>;
