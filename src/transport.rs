@@ -3,6 +3,9 @@ use std::{thread, time::Duration};
 
 use crate::{Result, Error};
 
+#[cfg(all(feature = "swi", feature = "i2c"))]
+compile_error!("feature \"swi\" and feature \"i2c\" cannot be enabled at the same time");
+
 #[cfg(feature = "swi")]
 use bytes::BufMut;
 #[cfg(feature = "swi")]
