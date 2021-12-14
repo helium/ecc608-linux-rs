@@ -239,8 +239,8 @@ impl EccCommand {
         bytes.put_u16_le(crc(&bytes[1..]))
     }
 
-    #[cfg(feature = "swi")]
     pub fn duration(&self) -> Duration {
+        #[cfg(feature = "swi")]
         let micros = match self {
             Self::Info => 5_000,
             Self::GenKey { .. } => 85_000,
@@ -253,16 +253,12 @@ impl EccCommand {
             Self::Ecdh { .. } => 42_000,
             Self::Random => 15_000,
         };
-        Duration::from_micros(micros)
-    }
-    
-    #[cfg(feature = "i2c")]
-    pub fn duration(&self) -> Duration {
+        #[cfg(feature = "i2c")]
         let micros = match self {
             Self::Info => 500,
             Self::GenKey { .. } => 59_000,
             Self::Read { .. } => 800,
-            Self::Write { .. } => 8000,
+            Self::Write { .. } => 8_000,
             // ecc608b increases the default lock duration of 15_000 by about 30%
             Self::Lock { .. } => 19_500,
             Self::Nonce { .. } => 17_000,
