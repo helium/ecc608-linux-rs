@@ -148,7 +148,7 @@ impl EccTransport {
         thread::sleep(Duration::from_micros(5_000) );
         
         let mut encoded_msg = BytesMut::new();
-        encoded_msg.resize(40,0);
+        encoded_msg.resize(40, 0);
         let _ = uart_cmd.read(&mut encoded_msg);
 
         let mut decoded_msg = BytesMut::new();
@@ -156,11 +156,9 @@ impl EccTransport {
         
         self.decode_swi_to_uart(&encoded_msg, &mut decoded_msg);
         
-        let response = EccResponse::from_bytes(&decoded_msg[1..]);
-        match response {
-            Err(e) => return Err(e),
-            _ => return Ok(()),
-        }
+        let _ = EccResponse::from_bytes(&decoded_msg[1..])?;
+        
+        Ok(())
     }
 
     pub fn send_sleep(&mut self) {        
