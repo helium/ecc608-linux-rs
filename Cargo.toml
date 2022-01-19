@@ -9,15 +9,11 @@ repository = "https://github.com/helium/ecc608-linux-rs"
 readme = "README.md"
 
 [dependencies]
-i2c-linux = {version = "0", optional = true }
-serialport = {version = "4", default-features = false, optional = true }
+i2c-linux = {version = "0" }
+serialport = {version = "4", default-features = false }
 sha2 = "0"
 bytes = "1"
 bitfield = "0"
 serde = "1"
 serde_derive = "1"
 thiserror = "1"
-
-[features]
-swi = ["serialport"]
-i2c = ["i2c-linux"]
