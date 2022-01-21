@@ -3,7 +3,7 @@ use crate::{
         ATCA_ECDH, ATCA_GENKEY, ATCA_INFO, ATCA_LOCK, ATCA_NONCE, ATCA_RANDOM, ATCA_READ,
         ATCA_RSP_SIZE_MIN, ATCA_SIGN, ATCA_WRITE, CMD_STATUS_BYTE_COMM, CMD_STATUS_BYTE_ECC,
         CMD_STATUS_BYTE_EXEC, CMD_STATUS_BYTE_PARSE, CMD_STATUS_BYTE_SELF_TEST,
-        CMD_STATUS_BYTE_SUCCESS, CMD_STATUS_BYTE_WAKE_SUCCESS, CMD_STATUS_BYTE_WATCHDOG,
+        CMD_STATUS_BYTE_SUCCESS, CMD_STATUS_BYTE_WATCHDOG,
     },
     Address, DataBuffer, Error, Result, Zone,
 };
@@ -261,7 +261,6 @@ impl EccResponse {
         if buf[0] == ATCA_RSP_SIZE_MIN {
             match buf[1] {
                 CMD_STATUS_BYTE_SUCCESS => Ok(Self::Data(Bytes::new())),
-                CMD_STATUS_BYTE_WAKE_SUCCESS => Ok(Self::Data(Bytes::new())),
                 CMD_STATUS_BYTE_PARSE => Ok(Self::Error(EccError::ParseError)),
                 CMD_STATUS_BYTE_ECC => Ok(Self::Error(EccError::Fault)),
                 CMD_STATUS_BYTE_SELF_TEST => Ok(Self::Error(EccError::SelfTestError)),
