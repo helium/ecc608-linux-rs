@@ -6,7 +6,6 @@ use crate::{
 };
 use bytes::{BufMut, Bytes, BytesMut};
 use sha2::{Digest, Sha256};
-use std::{thread, time::Duration};
 
 pub use crate::command::KeyType;
 
@@ -162,25 +161,12 @@ impl Ecc {
         sleep: bool,
         retries: u8,
     ) -> Result<Bytes> {
-
         let mut buf = BytesMut::with_capacity(ATCA_CMD_SIZE_MAX as usize);
-
         for retry in 0..retries {
-            let response = self.transport.send_wake();
-
-            match response {
-                Ok(_) => (),
-                Err(_err) if retry < retries => {
-                    thread::sleep(Duration::from_millis(65));
-                    continue
-                },
-                Err(err) =>{
-                    return Err(err )
-                }
-            }
-
             buf.clear();         
             command.bytes_into(&mut buf);
+            
+            self.transport.send_wake()?;
 
             match self.transport.protocol {
                 TransportProtocol::I2c => {buf[0] = ATCA_I2C_COMMAND_FLAG}
@@ -196,11 +182,10 @@ impl Ecc {
                 if retry == retries {
                     break;
                 } else {
-                    thread::sleep(Duration::from_millis(65));
                     continue;
-                }    
+                }
             }
-            
+
             let response = EccResponse::from_bytes(&buf[..]);
             if sleep {
                 self.transport.send_sleep();
