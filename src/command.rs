@@ -5,7 +5,7 @@ use crate::{
         CMD_STATUS_BYTE_EXEC, CMD_STATUS_BYTE_PARSE, CMD_STATUS_BYTE_SELF_TEST,
         CMD_STATUS_BYTE_SUCCESS, CMD_STATUS_BYTE_WATCHDOG,
     },
-    Address, DataBuffer, Error, Result, Zone,
+    Address, DataBuffer, Result, Zone,
 };
 use bitfield::bitfield;
 use bytes::{Buf, BufMut, Bytes, BytesMut};
@@ -122,6 +122,8 @@ pub enum EccError {
     /// watchdog timer will expire. The system must reset the watchdog timer by
     /// entering the idle or sleep modes.
     WatchDogError,
+    /// Crc in the message doesn't match the calculated Crc
+    CrcError,
     /// Unknown or unhandled Ecc error
     Unknown(u8),
 }
@@ -258,7 +260,7 @@ impl EccResponse {
             let expected = crc(buf);
             let actual = buf_crc.get_u16_le();
             if expected != actual {
-                return Err(Error::crc(expected, actual));
+                return Ok(Self::Error(EccError::CrcError));
             }
             Ok(Self::Data(Bytes::copy_from_slice(&buf[1..])))
         }

@@ -183,20 +183,16 @@ impl Ecc {
                 }
             }
 
-            let response = EccResponse::from_bytes(&buf[..]);
+            let response = EccResponse::from_bytes(&buf[..])?;
             if sleep {
                 self.transport.send_sleep();
             }
             match response {
-                Ok(EccResponse::Data(bytes)) => return Ok(bytes),
-                Ok(EccResponse::Error(err)) if err.is_recoverable() && retry < retries => {
+                EccResponse::Data(bytes) => return Ok(bytes),
+                EccResponse::Error(err) if err.is_recoverable() && retry < retries => {
                     continue;
                 }
-                Err(Error::Crc{expected: _, actual: _}) if retry < retries => {
-                    continue;
-                }
-                Ok(EccResponse::Error(err)) => return Err(Error::ecc(err)),
-                Err(e) => return Err(e)
+                EccResponse::Error(err) => return Err(Error::ecc(err)),
             }
         }
         Err(Error::timeout())
