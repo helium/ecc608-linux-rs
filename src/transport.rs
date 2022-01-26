@@ -1,11 +1,12 @@
 use bytes::BytesMut;
-use std::{thread, time::Duration};
+use std::{thread, time::Duration, convert::From};
 
 use crate::{Result, Error, command::EccCommand};
 
 use bytes::BufMut;
 use serialport::{ClearBuffer, SerialPort};
-use crate::{constants::{ATCA_SWI_SLEEP_FLAG, ATCA_SWI_TRANSMIT_FLAG, WAKE_DELAY}};
+use crate::constants::{ATCA_SWI_SLEEP_FLAG, ATCA_SWI_TRANSMIT_FLAG, ATCA_I2C_COMMAND_FLAG,
+                       ATCA_SWI_COMMAND_FLAG, WAKE_DELAY};
 
 use i2c_linux::{I2c, ReadFlags};
 use std::fs::File;
@@ -16,11 +17,21 @@ const SWI_DEFAULT_BAUDRATE: u32 = 230_400;
 const SWI_WAKE_BAUDRATE: u32 = 115_200;
 const SWI_BIT_SEND_DELAY: Duration = Duration::from_micros(45);
 
-#[derive(PartialEq)]
+#[derive(PartialEq, Clone, Copy)]
 pub(crate) enum TransportProtocol { 
     I2c,
     Swi,
 }
+
+impl From<TransportProtocol> for u8 {
+    fn from( p: TransportProtocol) -> Self {
+        match p {
+            TransportProtocol::I2c => ATCA_I2C_COMMAND_FLAG,
+            TransportProtocol::Swi => ATCA_SWI_COMMAND_FLAG,
+        }
+    }
+}
+
 pub(crate) struct EccTransport {
     swi_port: Option<Box<dyn SerialPort>>, 
     i2c_port: Option<I2c<File>>,

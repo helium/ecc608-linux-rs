@@ -1,5 +1,5 @@
-use crate::constants::{ ATCA_CMD_SIZE_MAX, ATCA_I2C_COMMAND_FLAG, ATCA_SWI_COMMAND_FLAG };
-use crate::transport::{EccTransport, TransportProtocol};
+use crate::constants::ATCA_CMD_SIZE_MAX;
+use crate::transport::EccTransport;
 use crate::{
     command::{EccCommand, EccResponse},
     Address, DataBuffer, Error, KeyConfig, Result, SlotConfig, Zone,
@@ -168,10 +168,7 @@ impl Ecc {
             
             self.transport.send_wake()?;
 
-            match self.transport.protocol {
-                TransportProtocol::I2c => {buf[0] = ATCA_I2C_COMMAND_FLAG}
-                TransportProtocol::Swi => {buf[0] = ATCA_SWI_COMMAND_FLAG}
-            }
+            buf[0] = self.transport.protocol.into();
 
             let delay = self.transport.command_duration(command);
             
