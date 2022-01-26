@@ -1,7 +1,7 @@
 use bytes::BytesMut;
 use std::{thread, time::Duration};
 
-use crate::{Result, Error};
+use crate::{Result, Error, command::EccCommand};
 
 use bytes::BufMut;
 use serialport::{ClearBuffer, SerialPort};
@@ -16,6 +16,7 @@ const SWI_DEFAULT_BAUDRATE: u32 = 230_400;
 const SWI_WAKE_BAUDRATE: u32 = 115_200;
 const SWI_BIT_SEND_DELAY: Duration = Duration::from_micros(45);
 
+#[derive(PartialEq)]
 pub(crate) enum TransportProtocol { 
     I2c,
     Swi,
@@ -247,5 +248,21 @@ impl EccTransport {
             buf[byte_idx] = decoded_byte;
         }
         Ok(())
+    }
+
+    pub fn command_duration(&self, command: &EccCommand ) -> Duration {
+        let micros = match command {
+            EccCommand::Info => 500,
+            EccCommand::Read { .. } => 800,
+            EccCommand::Write { .. } => 8_000,
+            // ecc608b increases the default lock duration of 15_000 by about 30%
+            EccCommand::Lock { .. } => 19_500,
+            EccCommand::Nonce { .. } => 17_000,
+            EccCommand::Random => 15_000,
+            EccCommand::GenKey { .. } => if self.protocol == TransportProtocol::Swi {85_000} else {59_000},
+            EccCommand::Sign { .. } => if self.protocol == TransportProtocol::Swi {80_000} else {64_000},
+            EccCommand::Ecdh { .. } => if self.protocol == TransportProtocol::Swi {42_000} else {28_000},
+        };
+        Duration::from_micros(micros)
     }
 }

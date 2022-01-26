@@ -9,7 +9,6 @@ use crate::{
 };
 use bitfield::bitfield;
 use bytes::{Buf, BufMut, Bytes, BytesMut};
-use std::time::Duration;
 
 #[derive(Debug, PartialEq)]
 pub enum KeyType {
@@ -239,21 +238,6 @@ impl EccCommand {
         bytes.put_u16_le(crc(&bytes[1..]))
     }
 
-    pub fn duration(&self, swi_interface: bool ) -> Duration {
-        let micros = match self {
-            Self::Info => 500,
-            Self::Read { .. } => 800,
-            Self::Write { .. } => 8_000,
-            // ecc608b increases the default lock duration of 15_000 by about 30%
-            Self::Lock { .. } => 19_500,
-            Self::Nonce { .. } => 17_000,
-            Self::Random => 15_000,
-            Self::GenKey { .. } => if swi_interface {85_000} else {59_000},
-            Self::Sign { .. } => if swi_interface {80_000} else {64_000},
-            Self::Ecdh { .. } => if swi_interface {42_000} else {28_000},
-        };
-        Duration::from_micros(micros)
-    }
 }
 
 impl EccResponse {

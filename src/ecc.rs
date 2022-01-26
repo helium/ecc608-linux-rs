@@ -163,7 +163,7 @@ impl Ecc {
     ) -> Result<Bytes> {
         let mut buf = BytesMut::with_capacity(ATCA_CMD_SIZE_MAX as usize);
         for retry in 0..retries {
-            buf.clear();         
+            buf.clear();
             command.bytes_into(&mut buf);
             
             self.transport.send_wake()?;
@@ -173,10 +173,7 @@ impl Ecc {
                 TransportProtocol::Swi => {buf[0] = ATCA_SWI_COMMAND_FLAG}
             }
 
-            let delay = match self.transport.protocol {
-                TransportProtocol::I2c => {command.duration( false )}
-                TransportProtocol::Swi => {command.duration( true )}
-            };
+            let delay = self.transport.command_duration(command);
             
             if let Err(_err) = self.transport.send_recv_buf(delay, &mut buf) {
                 if retry == retries {
