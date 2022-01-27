@@ -122,7 +122,7 @@ pub enum EccError {
     /// watchdog timer will expire. The system must reset the watchdog timer by
     /// entering the idle or sleep modes.
     WatchDogError,
-    /// Crc in the message doesn't match the calculated Crc
+    /// Crc in the message does not match the calculated Crc
     CrcError,
     /// Unknown or unhandled Ecc error
     Unknown(u8),
@@ -183,7 +183,7 @@ impl EccCommand {
     }
 
     pub fn bytes_into(&self, bytes: &mut BytesMut) {
-        bytes.put_slice(&[0x00, 0x00]);
+        bytes.put_u8(0x00);
         match self {
             Self::Info => {
                 put_cmd!(bytes, ATCA_INFO, 0, 0);

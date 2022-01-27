@@ -106,10 +106,7 @@ impl EccTransport {
                 let _ = self.send_i2c_buf(self.i2c_address, &[1]);
             } 
             TransportProtocol::Swi => {
-                let mut sleep_msg = BytesMut::new();
-                sleep_msg.put_u8(ATCA_SWI_SLEEP_FLAG);
-                let sleep_encoded = self.encode_uart_to_swi(&sleep_msg);
-        
+                let sleep_encoded = self.encode_uart_to_swi(&[ATCA_SWI_SLEEP_FLAG]);        
                 let _ = self.swi_port.as_mut().unwrap().write(&sleep_encoded);
                 thread::sleep( SWI_BIT_SEND_DELAY * 8);
             },
@@ -189,12 +186,10 @@ impl EccTransport {
     }
 
     fn recv_swi_buf(&mut self, buf: &mut BytesMut) -> Result {
-        unsafe { buf.set_len(2) };
+        buf.resize(2, 0xFF);
         buf[1] = 0xFF;
 
-        let mut transmit_flag = BytesMut::new();
-        transmit_flag.put_u8(ATCA_SWI_TRANSMIT_FLAG);
-        let encoded_transmit_flag = self.encode_uart_to_swi(&transmit_flag );
+        let encoded_transmit_flag = self.encode_uart_to_swi(&[ATCA_SWI_TRANSMIT_FLAG] );
 
         let _ = self.swi_port.as_mut().unwrap().clear(ClearBuffer::All);
 
@@ -221,11 +216,11 @@ impl EccTransport {
         Ok(())
     }
 
-    fn encode_uart_to_swi(&mut self, uart_msg: &BytesMut ) -> BytesMut {
-        
+    fn encode_uart_to_swi(&mut self, uart_msg: &[u8] ) -> BytesMut {
+
         let mut bit_field = BytesMut::new();
         bit_field.reserve(uart_msg.len() * 8 );
-    
+
         for byte in uart_msg.iter() {
             for bit_index in 0..8 {
                 if ( ((1 << bit_index ) & byte) >> bit_index ) == 0 {

@@ -164,11 +164,10 @@ impl Ecc {
         let mut buf = BytesMut::with_capacity(ATCA_CMD_SIZE_MAX as usize);
         for retry in 0..retries {
             buf.clear();
+            buf.put_u8( self.transport.protocol.into() );
             command.bytes_into(&mut buf);
             
             self.transport.send_wake()?;
-
-            buf[0] = self.transport.protocol.into();
 
             let delay = self.transport.command_duration(command);
             
