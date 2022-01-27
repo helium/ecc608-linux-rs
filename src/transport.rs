@@ -1,15 +1,12 @@
-use bytes::BytesMut;
-use std::{thread, time::Duration};
+use bytes::{BytesMut, BufMut};
+use std::{thread, time::Duration, fs::File};
 
 use crate::{Result, Error, command::EccCommand};
-
-use bytes::BufMut;
-use serialport::{ClearBuffer, SerialPort};
 use crate::constants::{ATCA_SWI_SLEEP_FLAG, ATCA_SWI_TRANSMIT_FLAG, ATCA_I2C_COMMAND_FLAG,
-                       ATCA_SWI_COMMAND_FLAG, WAKE_DELAY};
-
+    ATCA_SWI_COMMAND_FLAG, WAKE_DELAY};
+    
+use serialport::{ClearBuffer, SerialPort};
 use i2c_linux::{I2c, ReadFlags};
-use std::fs::File;
 
 const RECV_RETRY_WAIT: Duration = Duration::from_millis(50);
 const RECV_RETRIES: u8 = 2;
@@ -306,6 +303,4 @@ impl SwiTransport {
         }
         Ok(())
     }
-
-
 }
