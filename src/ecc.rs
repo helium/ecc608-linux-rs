@@ -1,5 +1,5 @@
 use crate::constants::ATCA_CMD_SIZE_MAX;
-use crate::transport::EccTransport;
+use crate::transport::TransportProtocol;
 use crate::{
     command::{EccCommand, EccResponse},
     Address, DataBuffer, Error, KeyConfig, Result, SlotConfig, Zone,
@@ -10,7 +10,7 @@ use sha2::{Digest, Sha256};
 pub use crate::command::KeyType;
 
 pub struct Ecc {
-    transport: EccTransport,
+    transport: TransportProtocol,
 }
 
 pub const MAX_SLOT: u8 = 15;
@@ -20,7 +20,7 @@ pub(crate) const CMD_RETRIES: u8 = 10;
 impl Ecc {
     pub fn from_path(path: &str, address: u16) -> Result<Self> {
 
-        let transport = EccTransport::from_path( path, address)?;
+        let transport = TransportProtocol::from_path( path, address)?;
 
         Ok(Self {transport})
     }
@@ -164,7 +164,7 @@ impl Ecc {
         let mut buf = BytesMut::with_capacity(ATCA_CMD_SIZE_MAX as usize);
         for retry in 0..retries {
             buf.clear();
-            buf.put_u8( self.transport.protocol.into() );
+            buf.put_u8( self.transport.put_command_flag() );
             command.bytes_into(&mut buf);
             
             self.transport.send_wake()?;
