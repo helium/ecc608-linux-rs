@@ -37,8 +37,7 @@ impl TransportProtocol {
             let i2c_handle = I2cTransport::new(path, address)?;
             Ok(Self::I2c(i2c_handle))
         } else {
-            eprintln!("Failed to open selected port");
-            ::std::process::exit(1);
+            Err(Error::invalid_address())
         }
     }
 
