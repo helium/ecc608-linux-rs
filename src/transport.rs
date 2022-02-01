@@ -223,7 +223,7 @@ impl SwiTransport {
         let _ = self.port.as_mut().clear(ClearBuffer::All);
 
         for _retry in 0..RECV_RETRIES {
-            self.port.as_mut().write(&encoded_transmit_flag)?;
+            self.port.as_mut().write_all(&encoded_transmit_flag)?;
 
             if let Err(_err) = self.decode_swi_to_uart(&mut buf[0..2]) {
             } else {
@@ -261,7 +261,7 @@ impl SwiTransport {
     }
 
     fn decode_swi_to_uart(&mut self, buf: &mut [u8]) -> Result {
-        for byte_idx in 0..buf.len() {
+        for byte in buf {
             let mut decoded_byte = 0;
             let mut bit_mask: u8 = 1;
 
@@ -275,10 +275,10 @@ impl SwiTransport {
                 } else {
                     return Err(Error::timeout());
                 }
-                bit_mask = bit_mask << 1;
+                bit_mask <<= 1;
             }
 
-            buf[byte_idx] = decoded_byte;
+            *byte = decoded_byte;
         }
         Ok(())
     }
