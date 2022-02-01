@@ -1,31 +1,27 @@
-use crate::constants::{ATCA_CMD_SIZE_MAX, WAKE_DELAY};
+use crate::constants::ATCA_CMD_SIZE_MAX;
+use crate::transport::TransportProtocol;
 use crate::{
     command::{EccCommand, EccResponse},
     Address, DataBuffer, Error, KeyConfig, Result, SlotConfig, Zone,
 };
 use bytes::{BufMut, Bytes, BytesMut};
-use i2c_linux::{I2c, ReadFlags};
 use sha2::{Digest, Sha256};
-use std::{fs::File, thread, time::Duration};
 
 pub use crate::command::KeyType;
 
 pub struct Ecc {
-    i2c: I2c<File>,
-    address: u16,
+    transport: TransportProtocol,
 }
 
 pub const MAX_SLOT: u8 = 15;
 
-pub(crate) const RECV_RETRIES: u8 = 2;
-pub(crate) const RECV_RETRY_WAIT: Duration = Duration::from_millis(50);
 pub(crate) const CMD_RETRIES: u8 = 10;
 
 impl Ecc {
     pub fn from_path(path: &str, address: u16) -> Result<Self> {
-        let mut i2c = I2c::from_path(path)?;
-        i2c.smbus_set_slave_address(address, false)?;
-        Ok(Self { i2c, address })
+        let transport = TransportProtocol::from_path(path, address)?;
+
+        Ok(Self { transport })
     }
 
     pub fn get_info(&mut self) -> Result<Bytes> {
@@ -154,14 +150,6 @@ impl Ecc {
             .map(|_| ())
     }
 
-    fn send_wake(&mut self) {
-        let _ = self.send_buf(0, &[0]);
-    }
-
-    fn send_sleep(&mut self) {
-        let _ = self.send_buf(self.address, &[1]);
-    }
-
     pub(crate) fn send_command(&mut self, command: &EccCommand) -> Result<Bytes> {
         self.send_command_retries(command, true, CMD_RETRIES)
     }
@@ -175,12 +163,14 @@ impl Ecc {
         let mut buf = BytesMut::with_capacity(ATCA_CMD_SIZE_MAX as usize);
         for retry in 0..retries {
             buf.clear();
+            buf.put_u8(self.transport.put_command_flag());
             command.bytes_into(&mut buf);
 
-            self.send_wake();
-            thread::sleep(WAKE_DELAY);
+            self.transport.send_wake()?;
 
-            if let Err(_err) = self.send_recv_buf(command.duration(), &mut buf) {
+            let delay = self.transport.command_duration(command);
+
+            if let Err(_err) = self.transport.send_recv_buf(delay, &mut buf) {
                 if retry == retries {
                     break;
                 } else {
@@ -190,7 +180,7 @@ impl Ecc {
 
             let response = EccResponse::from_bytes(&buf[..])?;
             if sleep {
-                self.send_sleep();
+                self.transport.send_sleep();
             }
             match response {
                 EccResponse::Data(bytes) => return Ok(bytes),
@@ -201,51 +191,5 @@ impl Ecc {
             }
         }
         Err(Error::timeout())
-    }
-
-    fn send_recv_buf(&mut self, delay: Duration, buf: &mut BytesMut) -> Result {
-        self.send_buf(self.address, &buf[..])?;
-        thread::sleep(delay);
-        self.recv_buf(buf)
-    }
-
-    pub(crate) fn send_buf(&mut self, address: u16, buf: &[u8]) -> Result {
-        let write_msg = i2c_linux::Message::Write {
-            address,
-            data: buf,
-            flags: Default::default(),
-        };
-
-        self.i2c.i2c_transfer(&mut [write_msg])?;
-        Ok(())
-    }
-
-    pub(crate) fn recv_buf(&mut self, buf: &mut BytesMut) -> Result {
-        unsafe { buf.set_len(1) };
-        buf[0] = 0xff;
-        for _retry in 0..RECV_RETRIES {
-            let msg = i2c_linux::Message::Read {
-                address: self.address,
-                data: &mut buf[0..1],
-                flags: Default::default(),
-            };
-            if let Err(_err) = self.i2c.i2c_transfer(&mut [msg]) {
-            } else {
-                break;
-            }
-            thread::sleep(RECV_RETRY_WAIT);
-        }
-        let count = buf[0] as usize;
-        if count == 0xff {
-            return Err(Error::timeout());
-        }
-        unsafe { buf.set_len(count) };
-        let read_msg = i2c_linux::Message::Read {
-            address: self.address,
-            data: &mut buf[1..count],
-            flags: ReadFlags::NO_START,
-        };
-        self.i2c.i2c_transfer(&mut [read_msg])?;
-        Ok(())
     }
 }

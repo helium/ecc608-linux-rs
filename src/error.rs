@@ -6,11 +6,10 @@ pub enum Error {
     IoError(#[from] std::io::Error),
     #[error("timeout/retry error")]
     Timeout,
-    #[error("crc error expected {}, actual {}", .expected, .actual)]
-    Crc { expected: u16, actual: u16 },
     #[error("ecc error {:?}", .0)]
     Ecc(crate::command::EccError),
-
+    #[error("serial port error")]
+    SerialPort(#[from] serialport::Error),
     #[error("invalid ecc address")]
     InvalidAddress,
 }
@@ -18,10 +17,6 @@ pub enum Error {
 impl Error {
     pub(crate) fn timeout() -> Self {
         Self::Timeout
-    }
-
-    pub(crate) fn crc(expected: u16, actual: u16) -> Self {
-        Self::Crc { expected, actual }
     }
 
     pub(crate) fn ecc(err: crate::command::EccError) -> Self {

@@ -5,11 +5,10 @@ use crate::{
         CMD_STATUS_BYTE_EXEC, CMD_STATUS_BYTE_PARSE, CMD_STATUS_BYTE_SELF_TEST,
         CMD_STATUS_BYTE_SUCCESS, CMD_STATUS_BYTE_WATCHDOG,
     },
-    Address, DataBuffer, Error, Result, Zone,
+    Address, DataBuffer, Result, Zone,
 };
 use bitfield::bitfield;
 use bytes::{Buf, BufMut, Bytes, BytesMut};
-use std::time::Duration;
 
 #[derive(Debug, PartialEq)]
 pub enum KeyType {
@@ -123,6 +122,8 @@ pub enum EccError {
     /// watchdog timer will expire. The system must reset the watchdog timer by
     /// entering the idle or sleep modes.
     WatchDogError,
+    /// Crc in the message does not match the calculated Crc
+    CrcError,
     /// Unknown or unhandled Ecc error
     Unknown(u8),
 }
@@ -182,7 +183,7 @@ impl EccCommand {
     }
 
     pub fn bytes_into(&self, bytes: &mut BytesMut) {
-        bytes.put_slice(&[0x03, 0x00]);
+        bytes.put_u8(0x00);
         match self {
             Self::Info => {
                 put_cmd!(bytes, ATCA_INFO, 0, 0);
@@ -238,22 +239,6 @@ impl EccCommand {
         bytes[1] = (bytes.len() + 1) as u8;
         bytes.put_u16_le(crc(&bytes[1..]))
     }
-
-    pub fn duration(&self) -> Duration {
-        let micros = match self {
-            Self::Info => 500,
-            Self::GenKey { .. } => 59_000,
-            Self::Read { .. } => 800,
-            Self::Write { .. } => 8000,
-            // ecc608b increases the default lock duration of 15_000 by about 30%
-            Self::Lock { .. } => 19_500,
-            Self::Nonce { .. } => 17_000,
-            Self::Sign { .. } => 64_000,
-            Self::Ecdh { .. } => 28_000,
-            Self::Random => 15_000,
-        };
-        Duration::from_micros(micros)
-    }
 }
 
 impl EccResponse {
@@ -274,7 +259,7 @@ impl EccResponse {
             let expected = crc(buf);
             let actual = buf_crc.get_u16_le();
             if expected != actual {
-                return Err(Error::crc(expected, actual));
+                return Ok(Self::Error(EccError::CrcError));
             }
             Ok(Self::Data(Bytes::copy_from_slice(&buf[1..])))
         }

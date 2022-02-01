@@ -14,6 +14,10 @@ pub(crate) const CMD_STATUS_BYTE_COMM: u8 = 0xFF;
 
 pub(crate) const ATCA_RSP_SIZE_MIN: u8 = 4;
 
+pub(crate) const ATCA_SWI_TRANSMIT_FLAG: u8 = 0x88;
+pub(crate) const ATCA_SWI_SLEEP_FLAG: u8 = 0xCC;
+pub(crate) const ATCA_SWI_COMMAND_FLAG: u8 = 0x77;
+pub(crate) const ATCA_I2C_COMMAND_FLAG: u8 = 0x03;
 pub(crate) const ATCA_INFO: u8 = 0x30;
 pub(crate) const ATCA_READ: u8 = 0x02;
 pub(crate) const ATCA_WRITE: u8 = 0x12;
