@@ -1,12 +1,14 @@
-use bytes::{BytesMut, BufMut};
-use std::{thread, time::Duration, fs::File};
+use bytes::{BufMut, BytesMut};
+use std::{fs::File, thread, time::Duration};
 
-use crate::{Result, Error, command::EccCommand};
-use crate::constants::{ATCA_SWI_SLEEP_FLAG, ATCA_SWI_TRANSMIT_FLAG, ATCA_I2C_COMMAND_FLAG,
-    ATCA_SWI_COMMAND_FLAG, WAKE_DELAY};
-    
-use serialport::{ClearBuffer, SerialPort};
+use crate::constants::{
+    ATCA_I2C_COMMAND_FLAG, ATCA_SWI_COMMAND_FLAG, ATCA_SWI_SLEEP_FLAG, ATCA_SWI_TRANSMIT_FLAG,
+    WAKE_DELAY,
+};
+use crate::{command::EccCommand, Error, Result};
+
 use i2c_linux::{I2c, ReadFlags};
+use serialport::{ClearBuffer, SerialPort};
 
 const RECV_RETRY_WAIT: Duration = Duration::from_millis(50);
 const RECV_RETRIES: u8 = 2;
@@ -19,7 +21,7 @@ pub struct I2cTransport {
 }
 
 pub struct SwiTransport {
-    port: Box<dyn SerialPort>
+    port: Box<dyn SerialPort>,
 }
 pub(crate) enum TransportProtocol {
     I2c(I2cTransport),
@@ -28,16 +30,13 @@ pub(crate) enum TransportProtocol {
 
 impl TransportProtocol {
     pub fn from_path(path: &str, address: u16) -> Result<Self> {
-
-        if path.starts_with("/dev/tty"){
-            let swi_handle = SwiTransport::new( path )?;
+        if path.starts_with("/dev/tty") {
+            let swi_handle = SwiTransport::new(path)?;
             Ok(Self::Swi(swi_handle))
-        }
-        else if path.starts_with("/dev/i2c") {
+        } else if path.starts_with("/dev/i2c") {
             let i2c_handle = I2cTransport::new(path, address)?;
-            Ok(Self::I2c(i2c_handle) )
-        }
-        else {
+            Ok(Self::I2c(i2c_handle))
+        } else {
             eprintln!("Failed to open selected port");
             ::std::process::exit(1);
         }
@@ -45,39 +44,26 @@ impl TransportProtocol {
 
     pub fn send_wake(&mut self) -> Result {
         match self {
-            Self::I2c(i2c_handle) => {
-                i2c_handle.send_wake()
-            }
-            Self::Swi(swi_handle) => {
-                swi_handle.send_wake()
-            },
+            Self::I2c(i2c_handle) => i2c_handle.send_wake(),
+            Self::Swi(swi_handle) => swi_handle.send_wake(),
         }
     }
 
     pub fn send_sleep(&mut self) {
         match self {
-            Self::I2c(i2c_handle) => {
-                i2c_handle.send_sleep()
-            }
-            Self::Swi(swi_handle) => {
-                swi_handle.send_sleep()
-            },
+            Self::I2c(i2c_handle) => i2c_handle.send_sleep(),
+            Self::Swi(swi_handle) => swi_handle.send_sleep(),
         }
     }
 
     pub fn send_recv_buf(&mut self, delay: Duration, buf: &mut BytesMut) -> Result {
         match self {
-            Self::I2c(i2c_handle) => {
-                i2c_handle.send_recv_buf( delay, buf )
-            }
-            Self::Swi(swi_handle) => {
-                swi_handle.send_recv_buf( delay, buf )
-            },
+            Self::I2c(i2c_handle) => i2c_handle.send_recv_buf(delay, buf),
+            Self::Swi(swi_handle) => swi_handle.send_recv_buf(delay, buf),
         }
     }
 
-    pub fn command_duration(&self, command: &EccCommand ) -> Duration {
-
+    pub fn command_duration(&self, command: &EccCommand) -> Duration {
         let micros = match command {
             EccCommand::Info => 500,
             EccCommand::Read { .. } => 800,
@@ -87,22 +73,22 @@ impl TransportProtocol {
             EccCommand::Nonce { .. } => 17_000,
             EccCommand::Random => 15_000,
             EccCommand::GenKey { .. } => match self {
-                Self::Swi(_) => {85_000}
-                Self::I2c(_) => {59_000}
-            }
+                Self::Swi(_) => 85_000,
+                Self::I2c(_) => 59_000,
+            },
             EccCommand::Sign { .. } => match self {
-                Self::Swi(_) => {80_000}
-                Self::I2c(_) => {64_000}
-            }
+                Self::Swi(_) => 80_000,
+                Self::I2c(_) => 64_000,
+            },
             EccCommand::Ecdh { .. } => match self {
-                Self::Swi(_) => {42_000}
-                Self::I2c(_) => {28_000}
-            }
+                Self::Swi(_) => 42_000,
+                Self::I2c(_) => 28_000,
+            },
         };
         Duration::from_micros(micros)
     }
 
-    pub fn put_command_flag( &self ) -> u8 {
+    pub fn put_command_flag(&self) -> u8 {
         match self {
             Self::I2c(_) => ATCA_I2C_COMMAND_FLAG,
             Self::Swi(_) => ATCA_SWI_COMMAND_FLAG,
@@ -111,20 +97,20 @@ impl TransportProtocol {
 }
 
 impl I2cTransport {
-    fn new( path: &str, address: u16 ) -> Result<Self> {
+    fn new(path: &str, address: u16) -> Result<Self> {
         let mut port = I2c::from_path(path)?;
         port.smbus_set_slave_address(address, false)?;
 
-        Ok(Self{port,address,})
+        Ok(Self { port, address })
     }
 
-    fn send_wake( &mut self ) -> Result {
+    fn send_wake(&mut self) -> Result {
         let _ = self.send_buf(0, &[0]);
         thread::sleep(WAKE_DELAY);
         Ok(())
     }
 
-    fn send_sleep( &mut self ) {
+    fn send_sleep(&mut self) {
         let _ = self.send_buf(self.address, &[1]);
     }
 
@@ -176,20 +162,19 @@ impl I2cTransport {
 }
 
 impl SwiTransport {
-    fn new( path: &str ) -> Result<Self> {
+    fn new(path: &str) -> Result<Self> {
         let port = serialport::new(path, SWI_DEFAULT_BAUDRATE)
-        .data_bits(serialport::DataBits::Seven)
-        .parity(serialport::Parity::None)
-        .stop_bits(serialport::StopBits::One)
-        .timeout(Duration::from_millis(50))
-        .open()?;
+            .data_bits(serialport::DataBits::Seven)
+            .parity(serialport::Parity::None)
+            .stop_bits(serialport::StopBits::One)
+            .timeout(Duration::from_millis(50))
+            .open()?;
 
-        Ok(Self{port})
+        Ok(Self { port })
     }
 
     fn send_wake(&mut self) -> Result {
-        if let Err(_err) = self.port.as_mut().set_baud_rate(SWI_WAKE_BAUDRATE)
-        {
+        if let Err(_err) = self.port.as_mut().set_baud_rate(SWI_WAKE_BAUDRATE) {
             return Err(Error::timeout());
         }
 
@@ -204,7 +189,7 @@ impl SwiTransport {
     fn send_sleep(&mut self) {
         let sleep_encoded = self.encode_uart_to_swi(&[ATCA_SWI_SLEEP_FLAG]);
         let _ = self.port.as_mut().write(&sleep_encoded);
-        thread::sleep( SWI_BIT_SEND_DELAY * 8);
+        thread::sleep(SWI_BIT_SEND_DELAY * 8);
     }
 
     fn send_recv_buf(&mut self, delay: Duration, buf: &mut BytesMut) -> Result {
@@ -216,7 +201,6 @@ impl SwiTransport {
     }
 
     fn send_swi_buf(&mut self, buf: &[u8]) -> Result {
-
         let send_size = self.port.as_mut().write(buf)?;
 
         //Each byte takes ~45us to transmit, so we must wait for the transmission to finish before proceeding
@@ -225,7 +209,7 @@ impl SwiTransport {
         //Because Tx line is linked with Rx line, all sent msgs are returned on the Rx line and must be cleared from the buffer
         let mut clear_rx_line = BytesMut::new();
         clear_rx_line.resize(send_size, 0);
-        let _ = self.port.as_mut().read_exact( &mut clear_rx_line );
+        let _ = self.port.as_mut().read_exact(&mut clear_rx_line);
 
         Ok(())
     }
@@ -234,7 +218,7 @@ impl SwiTransport {
         buf.resize(2, 0xFF);
         buf[1] = 0xFF;
 
-        let encoded_transmit_flag = self.encode_uart_to_swi(&[ATCA_SWI_TRANSMIT_FLAG] );
+        let encoded_transmit_flag = self.encode_uart_to_swi(&[ATCA_SWI_TRANSMIT_FLAG]);
 
         let _ = self.port.as_mut().clear(ClearBuffer::All);
 
@@ -261,13 +245,12 @@ impl SwiTransport {
         Ok(())
     }
 
-    fn encode_uart_to_swi(&mut self, uart_msg: &[u8] ) -> BytesMut {
-
+    fn encode_uart_to_swi(&mut self, uart_msg: &[u8]) -> BytesMut {
         let mut bit_field = BytesMut::with_capacity(uart_msg.len() * 8);
 
         for byte in uart_msg.iter() {
             for bit_index in 0..8 {
-                if ( ((1 << bit_index ) & byte) >> bit_index ) == 0 {
+                if (((1 << bit_index) & byte) >> bit_index) == 0 {
                     bit_field.put_u8(0xFD);
                 } else {
                     bit_field.put_u8(0xFF);

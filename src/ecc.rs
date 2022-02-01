@@ -19,10 +19,9 @@ pub(crate) const CMD_RETRIES: u8 = 10;
 
 impl Ecc {
     pub fn from_path(path: &str, address: u16) -> Result<Self> {
+        let transport = TransportProtocol::from_path(path, address)?;
 
-        let transport = TransportProtocol::from_path( path, address)?;
-
-        Ok(Self {transport})
+        Ok(Self { transport })
     }
 
     pub fn get_info(&mut self) -> Result<Bytes> {
@@ -164,13 +163,13 @@ impl Ecc {
         let mut buf = BytesMut::with_capacity(ATCA_CMD_SIZE_MAX as usize);
         for retry in 0..retries {
             buf.clear();
-            buf.put_u8( self.transport.put_command_flag() );
+            buf.put_u8(self.transport.put_command_flag());
             command.bytes_into(&mut buf);
-            
+
             self.transport.send_wake()?;
 
             let delay = self.transport.command_duration(command);
-            
+
             if let Err(_err) = self.transport.send_recv_buf(delay, &mut buf) {
                 if retry == retries {
                     break;
