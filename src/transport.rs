@@ -30,11 +30,11 @@ impl TransportProtocol {
     pub fn from_path(path: &str, address: u16) -> Result<Self> {
 
         if path.starts_with("/dev/tty"){
-            let swi_handle = SwiTransport::init( path )?;
+            let swi_handle = SwiTransport::new( path )?;
             Ok(Self::Swi(swi_handle))
         }
         else if path.starts_with("/dev/i2c") {
-            let i2c_handle = I2cTransport::init(path, address)?;
+            let i2c_handle = I2cTransport::new(path, address)?;
             Ok(Self::I2c(i2c_handle) )
         }
         else {
@@ -111,7 +111,7 @@ impl TransportProtocol {
 }
 
 impl I2cTransport {
-    fn init( path: &str, address: u16 ) -> Result<Self> {
+    fn new( path: &str, address: u16 ) -> Result<Self> {
         let mut port = I2c::from_path(path)?;
         port.smbus_set_slave_address(address, false)?;
 
@@ -176,16 +176,13 @@ impl I2cTransport {
 }
 
 impl SwiTransport {
-    fn init( path: &str ) -> Result<Self> {
+    fn new( path: &str ) -> Result<Self> {
         let port = serialport::new(path, SWI_DEFAULT_BAUDRATE)
         .data_bits(serialport::DataBits::Seven)
         .parity(serialport::Parity::None)
         .stop_bits(serialport::StopBits::One)
         .timeout(Duration::from_millis(50))
-        .open().unwrap_or_else(|e| {
-            eprintln!("Failed to open serial port. Error: {}", e);
-            ::std::process::exit(1);
-        });
+        .open()?;
 
         Ok(Self{port})
     }
@@ -266,8 +263,7 @@ impl SwiTransport {
 
     fn encode_uart_to_swi(&mut self, uart_msg: &[u8] ) -> BytesMut {
 
-        let mut bit_field = BytesMut::new();
-        bit_field.reserve(uart_msg.len() * 8 );
+        let mut bit_field = BytesMut::with_capacity(uart_msg.len() * 8);
 
         for byte in uart_msg.iter() {
             for bit_index in 0..8 {

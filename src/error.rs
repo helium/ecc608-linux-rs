@@ -8,7 +8,8 @@ pub enum Error {
     Timeout,
     #[error("ecc error {:?}", .0)]
     Ecc(crate::command::EccError),
-
+    #[error("serial port error")]
+    SerialPort(#[from] serialport::Error),
     #[error("invalid ecc address")]
     InvalidAddress,
 }
