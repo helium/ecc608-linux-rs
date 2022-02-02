@@ -131,7 +131,7 @@ impl I2cTransport {
     }
 
     fn recv_buf(&mut self, buf: &mut BytesMut) -> Result {
-        unsafe { buf.set_len(1) };
+        buf.resize(1, 0);
         buf[0] = 0xff;
         for _retry in 0..RECV_RETRIES {
             let msg = i2c_linux::Message::Read {
@@ -149,7 +149,7 @@ impl I2cTransport {
         if count == 0xff {
             return Err(Error::timeout());
         }
-        unsafe { buf.set_len(count) };
+        buf.resize(count, 0);
         let read_msg = i2c_linux::Message::Read {
             address: self.address,
             data: &mut buf[1..count],
@@ -237,7 +237,7 @@ impl SwiTransport {
         if count == 0xFF {
             return Err(Error::timeout());
         }
-        unsafe { buf.set_len(count) };
+        buf.resize(count, 0);
         if let Err(_err) = self.decode_swi_to_uart(&mut buf[1..count]) {
             return Err(Error::timeout());
         }
