@@ -39,16 +39,16 @@ bitfield! {
     pub struct KeyConfig(u16);
     impl Debug;
 
-    u8, auth_key, set_auth_key: 3, 0;
-    intrusion_disable, set_intrusion_disable: 4;
-    u8, x509_index, set_x509_index: 7, 6;
+    pub u8, auth_key, set_auth_key: 3, 0;
+    pub intrusion_disable, set_intrusion_disable: 4;
+    pub u8, x509_index, set_x509_index: 7, 6;
 
-    private, set_private: 8;
-    pub_info, set_pub_info: 9;
-    u8, from into KeyConfigType, key_type, set_key_type: 12, 10;
-    lockable, set_is_lockable: 13;
-    req_random, set_req_random: 14;
-    req_auth, set_req_auth: 15;
+    pub private, set_private: 8;
+    pub pub_info, set_pub_info: 9;
+    pub u8, from into KeyConfigType, key_type, set_key_type: 12, 10;
+    pub lockable, set_is_lockable: 13;
+    pub req_random, set_req_random: 14;
+    pub req_auth, set_req_auth: 15;
 }
 
 impl From<u16> for KeyConfig {
