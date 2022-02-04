@@ -1,11 +1,12 @@
-mod address;
 mod command;
 mod constants;
-mod ecc;
 mod error;
-mod key_config;
-mod slot_config;
 mod transport;
+
+pub mod address;
+pub mod ecc;
+pub mod key_config;
+pub mod slot_config;
 
 pub use error::Error;
 pub type Result<T = ()> = std::result::Result<T, Error>;
