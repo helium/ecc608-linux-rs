@@ -227,9 +227,9 @@ bitfield! {
     pub encrypt_read, set_encrypt_read: 14;
     pub limited_use, set_limited_use: 13;
     pub no_mac, set_no_mac: 12;
-    u8, from into ReadKey, read_key, set_read_key: 11, 8;
+    pub u8, from into ReadKey, read_key, set_read_key: 11, 8;
     u8, _write_config, _set_write_config: 7, 4;
-    u8, write_key, set_write_key: 3, 0;
+    pub u8, write_key, set_write_key: 3, 0;
 }
 
 impl From<&[u8]> for SlotConfig {
