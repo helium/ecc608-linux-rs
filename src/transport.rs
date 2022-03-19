@@ -2,12 +2,12 @@ use bytes::{BufMut, BytesMut};
 use std::{fs::File, thread, time::Duration};
 
 use crate::constants::{
-    ATCA_I2C_COMMAND_FLAG, ATCA_SWI_COMMAND_FLAG, ATCA_SWI_SLEEP_FLAG, ATCA_SWI_TRANSMIT_FLAG,
-    WAKE_DELAY,
+    ATCA_I2C_COMMAND_FLAG, ATCA_RSP_SIZE_MAX, ATCA_SWI_COMMAND_FLAG, ATCA_SWI_SLEEP_FLAG,
+    ATCA_SWI_TRANSMIT_FLAG, WAKE_DELAY,
 };
 use crate::{command::EccCommand, Error, Result};
 
-use i2c_linux::{I2c, ReadFlags};
+use i2c_linux::I2c;
 use serialport::{ClearBuffer, SerialPort};
 
 const RECV_RETRY_WAIT: Duration = Duration::from_millis(50);
@@ -131,16 +131,15 @@ impl I2cTransport {
     }
 
     fn recv_buf(&mut self, buf: &mut BytesMut) -> Result {
-        buf.resize(1, 0);
+        buf.resize(ATCA_RSP_SIZE_MAX as usize, 0);
         buf[0] = 0xff;
         for _retry in 0..RECV_RETRIES {
             let msg = i2c_linux::Message::Read {
                 address: self.address,
-                data: &mut buf[0..1],
+                data: buf,
                 flags: Default::default(),
             };
-            if let Err(_err) = self.port.i2c_transfer(&mut [msg]) {
-            } else {
+            if self.port.i2c_transfer(&mut [msg]).is_ok() {
                 break;
             }
             thread::sleep(RECV_RETRY_WAIT);
@@ -149,13 +148,7 @@ impl I2cTransport {
         if count == 0xff {
             return Err(Error::timeout());
         }
-        buf.resize(count, 0);
-        let read_msg = i2c_linux::Message::Read {
-            address: self.address,
-            data: &mut buf[1..count],
-            flags: ReadFlags::NO_START,
-        };
-        self.port.i2c_transfer(&mut [read_msg])?;
+        buf.truncate(count);
         Ok(())
     }
 }

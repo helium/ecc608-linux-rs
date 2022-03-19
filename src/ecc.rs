@@ -184,9 +184,7 @@ impl Ecc {
             }
             match response {
                 EccResponse::Data(bytes) => return Ok(bytes),
-                EccResponse::Error(err) if err.is_recoverable() && retry < retries => {
-                    continue;
-                }
+                EccResponse::Error(err) if err.is_recoverable() && retry < retries => continue,
                 EccResponse::Error(err) => return Err(Error::ecc(err)),
             }
         }
