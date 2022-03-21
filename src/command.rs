@@ -297,6 +297,7 @@ fn crc(src: &[u8]) -> u16 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::constants::ATCA_CMD_SIZE_MAX;
 
     #[test]
     fn info() {

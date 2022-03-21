@@ -13,6 +13,7 @@ pub(crate) const CMD_STATUS_BYTE_WATCHDOG: u8 = 0xEE;
 pub(crate) const CMD_STATUS_BYTE_COMM: u8 = 0xFF;
 
 pub(crate) const ATCA_RSP_SIZE_MIN: u8 = 4;
+pub(crate) const ATCA_RSP_SIZE_MAX: u8 = 75;
 
 pub(crate) const ATCA_SWI_TRANSMIT_FLAG: u8 = 0x88;
 pub(crate) const ATCA_SWI_SLEEP_FLAG: u8 = 0xCC;
