@@ -302,11 +302,10 @@ mod tests {
     #[test]
     fn info() {
         let packet = EccCommand::info();
-        let mut bytes = BytesMut::with_capacity(ATCA_CMD_SIZE_MAX as usize);
-        packet.bytes_into(&mut bytes);
-        assert_eq!(
-            &[0x03, 0x07, 0x30, 0x00, 0x00, 0x00, 0x03, 0x5D],
-            &bytes[..]
-        )
+        let mut buf = BytesMut::with_capacity(ATCA_CMD_SIZE_MAX as usize);
+        buf.put_u8(0x03); // write i2c command flag
+        packet.bytes_into(&mut buf);
+        // assert encoding
+        assert_eq!(&[0x03, 0x07, 0x30, 0x00, 0x00, 0x00, 0x03, 0x5D], &buf[..])
     }
 }
