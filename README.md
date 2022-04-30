@@ -17,7 +17,10 @@
 This library implements various elliptic curve cryptographic functions used by
 [Helium Blockchain](https://helium.com) using the Microchip ATECC608 family.
 This includes creating keys for ECC types, signing messages, and configuring and
-locking the chip down for production use. 
+locking the chip down for production use.
+
+**NOTE** The ECC608A or ECC608B is compliant with HIP-19. The other chips in
+this family: ATSHA204A · ATECC108A · ATECC508A are not compliant with HIP-19.
 
 ## Using
 
