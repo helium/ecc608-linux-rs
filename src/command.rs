@@ -231,7 +231,7 @@ impl EccCommand {
                 put_cmd!(bytes, ATCA_SIGN, u8::from(param1), (*key_slot as u16) << 8);
             }
             Self::Ecdh { x, y, key_slot } => {
-                put_cmd!(bytes, ATCA_ECDH, 0, *key_slot as u16);
+                put_cmd!(bytes, ATCA_ECDH, 0, (*key_slot as u16) << 8);
                 bytes.extend_from_slice(x);
                 bytes.extend_from_slice(y)
             }
