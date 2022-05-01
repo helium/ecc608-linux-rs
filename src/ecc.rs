@@ -4,7 +4,7 @@ use crate::{
     command::{EccCommand, EccResponse},
     Address, DataBuffer, Error, KeyConfig, Result, SlotConfig, Zone,
 };
-use bytes::{BufMut, Bytes, BytesMut};
+use bytes::{Buf, BufMut, Bytes, BytesMut};
 use sha2::{Digest, Sha256};
 
 pub use crate::command::KeyType;
@@ -47,8 +47,14 @@ impl Ecc {
         let bytes = self.read(false, &Address::slot_config(slot)?)?;
         let (s0, s1) = bytes.split_at(2);
         match slot & 1 == 0 {
-            true => Ok(SlotConfig::from(s0)),
-            false => Ok(SlotConfig::from(s1)),
+            true => {
+                let mut buf = s0;
+                Ok(SlotConfig::from(buf.get_u16_le()))
+            }
+            false => {
+                let mut buf = s1;
+                Ok(SlotConfig::from(buf.get_u16_le()))
+            }
         }
     }
 
@@ -59,12 +65,12 @@ impl Ecc {
         let mut new_bytes = BytesMut::with_capacity(4);
         match slot & 1 == 0 {
             true => {
-                new_bytes.put_u16(config.into());
+                new_bytes.put_u16_le(config.into());
                 new_bytes.extend_from_slice(s1);
             }
             false => {
                 new_bytes.extend_from_slice(s0);
-                new_bytes.put_u16(config.into());
+                new_bytes.put_u16_le(config.into());
             }
         }
         self.write(&slot_address, &new_bytes.freeze())
@@ -74,8 +80,14 @@ impl Ecc {
         let bytes = self.read(false, &Address::key_config(slot)?)?;
         let (s0, s1) = bytes.split_at(2);
         match slot & 1 == 0 {
-            true => Ok(KeyConfig::from(s0)),
-            false => Ok(KeyConfig::from(s1)),
+            true => {
+                let mut buf = s0;
+                Ok(KeyConfig::from(buf.get_u16_le()))
+            }
+            false => {
+                let mut buf = s1;
+                Ok(KeyConfig::from(buf.get_u16_le()))
+            }
         }
     }
 
@@ -86,12 +98,12 @@ impl Ecc {
         let mut new_bytes = BytesMut::with_capacity(4);
         match slot & 1 == 0 {
             true => {
-                new_bytes.put_u16(config.into());
+                new_bytes.put_u16_le(config.into());
                 new_bytes.extend_from_slice(s1);
             }
             false => {
                 new_bytes.extend_from_slice(s0);
-                new_bytes.put_u16(config.into());
+                new_bytes.put_u16_le(config.into());
             }
         }
         self.write(&slot_address, &new_bytes.freeze())
@@ -101,8 +113,8 @@ impl Ecc {
         let bytes = self.read(false, &Address::config(2, 5)?)?;
         let (_, s1) = bytes.split_at(2);
         match zone {
-            Zone::Config => Ok(s1[1] == 0),
-            Zone::Data => Ok(s1[0] == 0),
+            Zone::Config => Ok(s1[1] != 0x55),
+            Zone::Data => Ok(s1[0] != 0x55),
         }
     }
 

@@ -85,9 +85,9 @@ bitfield! {
     #[derive(PartialEq)]
     pub struct LockParam(u8);
     impl Debug;
-    u8, zone, set_zone: 1, 0;
-    u8, slot, set_slot: 5, 2;
     crc, set_crc: 7;
+    u8, slot, set_slot: 5, 2;
+    u8, zone, set_zone: 1, 0;
 }
 
 impl From<LockParam> for u8 {
@@ -138,7 +138,7 @@ macro_rules! put_cmd {
     ($dest:ident, $cmd:ident, $param1:expr, $param2:expr) => {
         $dest.put_u8($cmd);
         $dest.put_u8($param1);
-        $dest.put_u16($param2);
+        $dest.put_u16_le($param2);
     };
 }
 
@@ -189,7 +189,7 @@ impl EccCommand {
                 put_cmd!(bytes, ATCA_INFO, 0, 0);
             }
             Self::GenKey { key_type, slot } => {
-                put_cmd!(bytes, ATCA_GENKEY, u8::from(key_type), (*slot as u16) << 8);
+                put_cmd!(bytes, ATCA_GENKEY, u8::from(key_type), *slot as u16);
             }
             Self::Read { is_32, address } => {
                 let mut param1 = ReadWriteParam(0);
@@ -228,7 +228,7 @@ impl EccCommand {
                 let mut param1 = SignParam(0);
                 param1.set_source(source.into());
                 param1.set_external(true);
-                put_cmd!(bytes, ATCA_SIGN, u8::from(param1), (*key_slot as u16) << 8);
+                put_cmd!(bytes, ATCA_SIGN, u8::from(param1), *key_slot as u16);
             }
             Self::Ecdh { x, y, key_slot } => {
                 put_cmd!(bytes, ATCA_ECDH, 0, *key_slot as u16);
