@@ -10,7 +10,7 @@ use crate::{
 use bitfield::bitfield;
 use bytes::{Buf, BufMut, Bytes, BytesMut};
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum KeyType {
     Public,
     Private,
@@ -25,7 +25,7 @@ impl From<&KeyType> for u8 {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum EccCommand {
     Info,
     GenKey { key_type: KeyType, slot: u8 },
@@ -82,7 +82,7 @@ impl From<SignParam> for u8 {
 }
 
 bitfield! {
-    #[derive(PartialEq)]
+    #[derive(PartialEq, Eq)]
     pub struct LockParam(u8);
     impl Debug;
     u8, zone, set_zone: 1, 0;
@@ -96,7 +96,7 @@ impl From<LockParam> for u8 {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum EccError {
     /// Command was properly received but the length, command opcode, or
     /// parameters are illegal regardless of the state (volatile and/or EEPROM
@@ -128,7 +128,7 @@ pub enum EccError {
     Unknown(u8),
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum EccResponse {
     Error(EccError),
     Data(Bytes),

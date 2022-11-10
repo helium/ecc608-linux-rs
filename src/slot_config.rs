@@ -35,7 +35,7 @@ impl Default for ReadKey {
 
 /// Write cofiguration from the write_config slot bits for a given command. The
 /// interpretation of the write_config bits differs based on the command used.
-#[derive(Serialize, Debug, PartialEq)]
+#[derive(Serialize, Debug, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum WriteConfig {
     Write(_WriteConfig),
@@ -44,7 +44,7 @@ pub enum WriteConfig {
     PrivWrite(PrivWriteConfig),
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum WriteCommand {
     Write,
     DeriveKey,
@@ -80,7 +80,7 @@ impl Default for WriteConfig {
     }
 }
 
-#[derive(Serialize, Debug, PartialEq)]
+#[derive(Serialize, Debug, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum _WriteConfig {
     /// Clear text writes are always permitted on this slot. Slots set to
@@ -125,7 +125,7 @@ impl From<_WriteConfig> for u8 {
     }
 }
 
-#[derive(Serialize, Debug, PartialEq)]
+#[derive(Serialize, Debug, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum DeriveKeyConfig {
     ///  DeriveKey command can be run with/without authorizing MAC. Source Key:
@@ -163,7 +163,7 @@ impl From<DeriveKeyConfig> for u8 {
     }
 }
 
-#[derive(Serialize, Debug, PartialEq)]
+#[derive(Serialize, Debug, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum GenKeyConfig {
     /// GenKey may not be used to write random keys into this slot.
@@ -190,7 +190,7 @@ impl From<GenKeyConfig> for u8 {
     }
 }
 
-#[derive(Serialize, Debug, PartialEq)]
+#[derive(Serialize, Debug, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum PrivWriteConfig {
     /// PrivWrite will return an error if the target key slot has this value.
@@ -220,7 +220,7 @@ impl From<PrivWriteConfig> for u8 {
 }
 
 bitfield! {
-    #[derive(PartialEq)]
+    #[derive(PartialEq, Eq)]
     pub struct SlotConfig(u16);
     impl Debug;
     pub secret, set_secret: 15;

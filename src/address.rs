@@ -2,7 +2,7 @@ use crate::{Error, Result};
 use bitfield::bitfield;
 use std::{fmt, str::FromStr};
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Zone {
     Data,
     Config,
@@ -29,7 +29,7 @@ impl fmt::Display for Zone {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum DataBuffer {
     TempKey,
     MessageDigest,
@@ -57,7 +57,7 @@ impl From<u8> for DataBuffer {
     }
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum Address {
     Otp(OffsetAddress),
     Config(OffsetAddress),
@@ -65,7 +65,7 @@ pub enum Address {
 }
 
 bitfield! {
-    #[derive(PartialEq, Clone)]
+    #[derive(PartialEq, Eq, Clone)]
     pub struct OffsetAddress(u16);
     impl Debug;
     u8, offset, set_offset: 10, 8;
@@ -73,7 +73,7 @@ bitfield! {
 }
 
 bitfield! {
-    #[derive(PartialEq, Clone)]
+    #[derive(PartialEq, Clone, Eq)]
     pub struct DataAddress(u16);
     impl Debug;
     u8, block, set_block: 3, 0;
