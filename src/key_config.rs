@@ -2,7 +2,7 @@ use bitfield::bitfield;
 use bytes::Buf;
 use serde_derive::Serialize;
 
-#[derive(Serialize, Debug, PartialEq)]
+#[derive(Serialize, Debug, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum KeyConfigType {
     Ecc,
@@ -35,7 +35,7 @@ impl From<&[u8]> for KeyConfig {
 }
 
 bitfield! {
-    #[derive(PartialEq)]
+    #[derive(PartialEq, Eq)]
     pub struct KeyConfig(u16);
     impl Debug;
 
