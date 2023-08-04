@@ -11,6 +11,6 @@ pub mod slot_config;
 pub use error::Error;
 pub type Result<T = ()> = std::result::Result<T, Error>;
 pub use address::*;
-pub use ecc::{Ecc, KeyType, MAX_SLOT};
+pub use ecc::{Ecc, EccConfig, KeyType, MAX_SLOT};
 pub use key_config::*;
 pub use slot_config::*;

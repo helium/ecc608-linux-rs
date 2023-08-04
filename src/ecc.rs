@@ -1,27 +1,48 @@
-use crate::constants::ATCA_CMD_SIZE_MAX;
-use crate::transport::TransportProtocol;
 use crate::{
-    command::{EccCommand, EccResponse},
-    Address, DataBuffer, Error, KeyConfig, Result, SlotConfig, Zone,
+    constants::ATCA_CMD_SIZE_MAX,
+    transport::TransportProtocol,
+    {
+        command::{EccCommand, EccResponse},
+        Address, DataBuffer, Error, KeyConfig, Result, SlotConfig, Zone,
+    },
 };
 use bytes::{BufMut, Bytes, BytesMut};
 use sha2::{Digest, Sha256};
+use std::time::Duration;
 
 pub use crate::command::KeyType;
 
 pub struct Ecc {
     transport: TransportProtocol,
+    wake_delay: Duration,
 }
 
 pub const MAX_SLOT: u8 = 15;
+pub const DEFAULT_WAKE_DELAY: Duration = Duration::from_micros(1500);
 
 pub(crate) const CMD_RETRIES: u8 = 10;
 
-impl Ecc {
-    pub fn from_path(path: &str, address: u16) -> Result<Self> {
-        let transport = TransportProtocol::from_path(path, address)?;
+#[derive(Debug, Clone, Copy)]
+pub struct EccConfig {
+    pub wake_delay: Duration,
+}
 
-        Ok(Self { transport })
+impl Default for EccConfig {
+    fn default() -> Self {
+        Self {
+            wake_delay: DEFAULT_WAKE_DELAY,
+        }
+    }
+}
+
+impl Ecc {
+    pub fn from_path(path: &str, address: u16, config: EccConfig) -> Result<Self> {
+        let transport = TransportProtocol::from_path(path, address)?;
+        let wake_delay = config.wake_delay;
+        Ok(Self {
+            transport,
+            wake_delay,
+        })
     }
 
     pub fn get_info(&mut self) -> Result<Bytes> {
@@ -166,7 +187,7 @@ impl Ecc {
             buf.put_u8(self.transport.put_command_flag());
             command.bytes_into(&mut buf);
 
-            self.transport.send_wake()?;
+            self.transport.send_wake(self.wake_delay)?;
 
             let delay = self.transport.command_duration(command);
 

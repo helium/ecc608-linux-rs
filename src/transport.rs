@@ -3,7 +3,7 @@ use std::{fs::File, thread, time::Duration};
 
 use crate::constants::{
     ATCA_I2C_COMMAND_FLAG, ATCA_RSP_SIZE_MAX, ATCA_SWI_COMMAND_FLAG, ATCA_SWI_SLEEP_FLAG,
-    ATCA_SWI_TRANSMIT_FLAG, WAKE_DELAY,
+    ATCA_SWI_TRANSMIT_FLAG,
 };
 use crate::{command::EccCommand, Error, Result};
 
@@ -41,10 +41,10 @@ impl TransportProtocol {
         }
     }
 
-    pub fn send_wake(&mut self) -> Result {
+    pub fn send_wake(&mut self, wake_delay: Duration) -> Result {
         match self {
-            Self::I2c(i2c_handle) => i2c_handle.send_wake(),
-            Self::Swi(swi_handle) => swi_handle.send_wake(),
+            Self::I2c(i2c_handle) => i2c_handle.send_wake(wake_delay),
+            Self::Swi(swi_handle) => swi_handle.send_wake(wake_delay),
         }
     }
 
@@ -103,9 +103,9 @@ impl I2cTransport {
         Ok(Self { port, address })
     }
 
-    fn send_wake(&mut self) -> Result {
+    fn send_wake(&mut self, wake_delay: Duration) -> Result {
         let _ = self.send_buf(0, &[0]);
-        thread::sleep(WAKE_DELAY);
+        thread::sleep(wake_delay);
         Ok(())
     }
 
@@ -165,14 +165,14 @@ impl SwiTransport {
         Ok(Self { port })
     }
 
-    fn send_wake(&mut self) -> Result {
+    fn send_wake(&mut self, wake_delay: Duration) -> Result {
         if let Err(_err) = self.port.as_mut().set_baud_rate(SWI_WAKE_BAUDRATE) {
             return Err(Error::timeout());
         }
 
         let _ = self.port.as_mut().write(&[0]);
 
-        thread::sleep(WAKE_DELAY);
+        thread::sleep(wake_delay);
         let _ = self.port.as_mut().set_baud_rate(SWI_DEFAULT_BAUDRATE);
         let _ = self.port.as_mut().clear(ClearBuffer::All);
         Ok(())
