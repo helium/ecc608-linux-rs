@@ -42,6 +42,16 @@ pub struct EccCommandDuration {
 }
 
 impl EccConfig {
+    pub fn from_path(path: &str) -> Result<Self> {
+        if path.starts_with("/dev/tty") {
+            Ok(Self::for_swi())
+        } else if path.starts_with("/dev/i2c") {
+            Ok(Self::for_i2c())
+        } else {
+            Err(Error::invalid_address())
+        }
+    }
+
     pub fn for_swi() -> Self {
         Self {
             wake_delay: DEFAULT_WAKE_DELAY,
@@ -94,20 +104,21 @@ impl EccConfig {
 
 impl Ecc {
     pub fn from_path(path: &str, address: u16, config: Option<EccConfig>) -> Result<Self> {
-        let (transport, default_config) = if path.starts_with("/dev/tty") {
-            let swi_handle = transport::SwiTransport::new(path)?;
-            (swi_handle.into(), EccConfig::for_swi())
+        let transport = if path.starts_with("/dev/tty") {
+            transport::SwiTransport::new(path)?.into()
         } else if path.starts_with("/dev/i2c") {
-            let i2c_handle = transport::I2cTransport::new(path, address)?;
-            (i2c_handle.into(), EccConfig::for_i2c())
+            transport::I2cTransport::new(path, address)?.into()
         } else {
             return Err(Error::invalid_address());
         };
 
-        Ok(Self {
-            transport,
-            config: config.unwrap_or(default_config),
-        })
+        let config = if let Some(config) = config {
+            config
+        } else {
+            EccConfig::from_path(path)?
+        };
+
+        Ok(Self { transport, config })
     }
 
     pub fn get_info(&mut self) -> Result<Bytes> {
