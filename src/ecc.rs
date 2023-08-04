@@ -18,14 +18,14 @@ pub struct Ecc {
 }
 
 pub const MAX_SLOT: u8 = 15;
-pub const DEFAULT_WAKE_DELAY: Duration = Duration::from_micros(1500);
+pub const DEFAULT_WAKE_DELAY: u32 = 1500; // in microseconds
 
 pub(crate) const CMD_RETRIES: u8 = 10;
 
 #[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize)]
 pub struct EccConfig {
-    pub wake_delay: Duration,
-    pub command_duration: EccCommandDuration,
+    pub wake_delay: u32,
+    pub durations: EccCommandDuration,
 }
 
 #[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize)]
@@ -55,7 +55,7 @@ impl EccConfig {
     pub fn for_swi() -> Self {
         Self {
             wake_delay: DEFAULT_WAKE_DELAY,
-            command_duration: EccCommandDuration {
+            durations: EccCommandDuration {
                 info: 500,
                 read: 800,
                 write: 8_000,
@@ -72,7 +72,7 @@ impl EccConfig {
     pub fn for_i2c() -> Self {
         Self {
             wake_delay: DEFAULT_WAKE_DELAY,
-            command_duration: EccCommandDuration {
+            durations: EccCommandDuration {
                 info: 500,
                 read: 800,
                 write: 8_000,
@@ -88,15 +88,15 @@ impl EccConfig {
 
     pub fn command_duration(&self, command: &EccCommand) -> Duration {
         let micros = match command {
-            EccCommand::Info => self.command_duration.info,
-            EccCommand::Read { .. } => self.command_duration.read,
-            EccCommand::Write { .. } => self.command_duration.write,
-            EccCommand::Lock { .. } => self.command_duration.lock,
-            EccCommand::Nonce { .. } => self.command_duration.nonce,
-            EccCommand::Random => self.command_duration.random,
-            EccCommand::GenKey { .. } => self.command_duration.genkey,
-            EccCommand::Sign { .. } => self.command_duration.sign,
-            EccCommand::Ecdh { .. } => self.command_duration.ecdh,
+            EccCommand::Info => self.durations.info,
+            EccCommand::Read { .. } => self.durations.read,
+            EccCommand::Write { .. } => self.durations.write,
+            EccCommand::Lock { .. } => self.durations.lock,
+            EccCommand::Nonce { .. } => self.durations.nonce,
+            EccCommand::Random => self.durations.random,
+            EccCommand::GenKey { .. } => self.durations.genkey,
+            EccCommand::Sign { .. } => self.durations.sign,
+            EccCommand::Ecdh { .. } => self.durations.ecdh,
         };
         Duration::from_micros(micros as u64)
     }
@@ -259,13 +259,14 @@ impl Ecc {
     ) -> Result<Bytes> {
         let mut buf = BytesMut::with_capacity(ATCA_CMD_SIZE_MAX as usize);
         let delay = self.config.command_duration(command);
+        let wake_delay = Duration::from_micros(self.config.wake_delay as u64);
 
         for retry in 0..retries {
             buf.clear();
             buf.put_u8(self.transport.put_command_flag());
             command.bytes_into(&mut buf);
 
-            self.transport.send_wake(self.config.wake_delay)?;
+            self.transport.send_wake(wake_delay)?;
 
             if let Err(_err) = self.transport.send_recv_buf(delay, &mut buf) {
                 if retry == retries {
