@@ -77,7 +77,7 @@ impl TransportProtocol {
             },
             EccCommand::Sign { .. } => match self {
                 Self::Swi(_) => 80_000,
-                Self::I2c(_) => 64_000,
+                Self::I2c(_) => 70_000,
             },
             EccCommand::Ecdh { .. } => match self {
                 Self::Swi(_) => 42_000,
