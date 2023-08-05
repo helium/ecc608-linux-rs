@@ -3,14 +3,14 @@ use std::{fs::File, thread, time::Duration};
 
 use crate::constants::{
     ATCA_I2C_COMMAND_FLAG, ATCA_RSP_SIZE_MAX, ATCA_SWI_COMMAND_FLAG, ATCA_SWI_SLEEP_FLAG,
-    ATCA_SWI_TRANSMIT_FLAG, WAKE_DELAY,
+    ATCA_SWI_TRANSMIT_FLAG,
 };
-use crate::{command::EccCommand, Error, Result};
+use crate::{Error, Result};
 
 use i2c_linux::I2c;
 use serialport::{ClearBuffer, SerialPort};
 
-const RECV_RETRY_WAIT: Duration = Duration::from_millis(50);
+const RECV_RETRY_WAIT: Duration = Duration::from_millis(5);
 const RECV_RETRIES: u8 = 2;
 const SWI_DEFAULT_BAUDRATE: u32 = 230_400;
 const SWI_WAKE_BAUDRATE: u32 = 115_200;
@@ -28,23 +28,23 @@ pub(crate) enum TransportProtocol {
     Swi(SwiTransport),
 }
 
-impl TransportProtocol {
-    pub fn from_path(path: &str, address: u16) -> Result<Self> {
-        if path.starts_with("/dev/tty") {
-            let swi_handle = SwiTransport::new(path)?;
-            Ok(Self::Swi(swi_handle))
-        } else if path.starts_with("/dev/i2c") {
-            let i2c_handle = I2cTransport::new(path, address)?;
-            Ok(Self::I2c(i2c_handle))
-        } else {
-            Err(Error::invalid_address())
-        }
+impl From<I2cTransport> for TransportProtocol {
+    fn from(i2c_handle: I2cTransport) -> Self {
+        Self::I2c(i2c_handle)
     }
+}
 
-    pub fn send_wake(&mut self) -> Result {
+impl From<SwiTransport> for TransportProtocol {
+    fn from(swi_handle: SwiTransport) -> Self {
+        Self::Swi(swi_handle)
+    }
+}
+
+impl TransportProtocol {
+    pub fn send_wake(&mut self, wake_delay: Duration) -> Result {
         match self {
-            Self::I2c(i2c_handle) => i2c_handle.send_wake(),
-            Self::Swi(swi_handle) => swi_handle.send_wake(),
+            Self::I2c(i2c_handle) => i2c_handle.send_wake(wake_delay),
+            Self::Swi(swi_handle) => swi_handle.send_wake(wake_delay),
         }
     }
 
@@ -62,31 +62,6 @@ impl TransportProtocol {
         }
     }
 
-    pub fn command_duration(&self, command: &EccCommand) -> Duration {
-        let micros = match command {
-            EccCommand::Info => 500,
-            EccCommand::Read { .. } => 800,
-            EccCommand::Write { .. } => 8_000,
-            // ecc608b increases the default lock duration of 15_000 by about 30%
-            EccCommand::Lock { .. } => 19_500,
-            EccCommand::Nonce { .. } => 17_000,
-            EccCommand::Random => 15_000,
-            EccCommand::GenKey { .. } => match self {
-                Self::Swi(_) => 85_000,
-                Self::I2c(_) => 59_000,
-            },
-            EccCommand::Sign { .. } => match self {
-                Self::Swi(_) => 80_000,
-                Self::I2c(_) => 64_000,
-            },
-            EccCommand::Ecdh { .. } => match self {
-                Self::Swi(_) => 42_000,
-                Self::I2c(_) => 28_000,
-            },
-        };
-        Duration::from_micros(micros)
-    }
-
     pub fn put_command_flag(&self) -> u8 {
         match self {
             Self::I2c(_) => ATCA_I2C_COMMAND_FLAG,
@@ -96,16 +71,16 @@ impl TransportProtocol {
 }
 
 impl I2cTransport {
-    fn new(path: &str, address: u16) -> Result<Self> {
+    pub fn new(path: &str, address: u16) -> Result<Self> {
         let mut port = I2c::from_path(path)?;
         port.smbus_set_slave_address(address, false)?;
 
         Ok(Self { port, address })
     }
 
-    fn send_wake(&mut self) -> Result {
+    fn send_wake(&mut self, wake_delay: Duration) -> Result {
         let _ = self.send_buf(0, &[0]);
-        thread::sleep(WAKE_DELAY);
+        thread::sleep(wake_delay);
         Ok(())
     }
 
@@ -154,7 +129,7 @@ impl I2cTransport {
 }
 
 impl SwiTransport {
-    fn new(path: &str) -> Result<Self> {
+    pub fn new(path: &str) -> Result<Self> {
         let port = serialport::new(path, SWI_DEFAULT_BAUDRATE)
             .data_bits(serialport::DataBits::Seven)
             .parity(serialport::Parity::None)
@@ -165,14 +140,14 @@ impl SwiTransport {
         Ok(Self { port })
     }
 
-    fn send_wake(&mut self) -> Result {
+    fn send_wake(&mut self, wake_delay: Duration) -> Result {
         if let Err(_err) = self.port.as_mut().set_baud_rate(SWI_WAKE_BAUDRATE) {
             return Err(Error::timeout());
         }
 
         let _ = self.port.as_mut().write(&[0]);
 
-        thread::sleep(WAKE_DELAY);
+        thread::sleep(wake_delay);
         let _ = self.port.as_mut().set_baud_rate(SWI_DEFAULT_BAUDRATE);
         let _ = self.port.as_mut().clear(ClearBuffer::All);
         Ok(())

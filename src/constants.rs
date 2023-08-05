@@ -1,7 +1,3 @@
-use std::time::Duration;
-
-pub(crate) const WAKE_DELAY: Duration = Duration::from_micros(1500);
-
 pub(crate) const ATCA_CMD_SIZE_MAX: u8 = 4 * 36 + 7;
 
 pub(crate) const CMD_STATUS_BYTE_SUCCESS: u8 = 0x00;

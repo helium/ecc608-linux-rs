@@ -1,27 +1,123 @@
-use crate::constants::ATCA_CMD_SIZE_MAX;
-use crate::transport::TransportProtocol;
 use crate::{
-    command::{EccCommand, EccResponse},
-    Address, DataBuffer, Error, KeyConfig, Result, SlotConfig, Zone,
+    constants::ATCA_CMD_SIZE_MAX,
+    transport,
+    {
+        command::{EccCommand, EccResponse},
+        Address, DataBuffer, Error, KeyConfig, Result, SlotConfig, Zone,
+    },
 };
 use bytes::{BufMut, Bytes, BytesMut};
 use sha2::{Digest, Sha256};
+use std::time::Duration;
 
 pub use crate::command::KeyType;
 
 pub struct Ecc {
-    transport: TransportProtocol,
+    transport: transport::TransportProtocol,
+    config: EccConfig,
 }
 
 pub const MAX_SLOT: u8 = 15;
 
 pub(crate) const CMD_RETRIES: u8 = 10;
 
-impl Ecc {
-    pub fn from_path(path: &str, address: u16) -> Result<Self> {
-        let transport = TransportProtocol::from_path(path, address)?;
+#[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize)]
+pub struct EccConfig {
+    pub wake_delay: u32,
+    pub durations: EccCommandDuration,
+}
 
-        Ok(Self { transport })
+#[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize)]
+pub struct EccCommandDuration {
+    pub info: u32,
+    pub read: u32,
+    pub write: u32,
+    pub lock: u32,
+    pub nonce: u32,
+    pub random: u32,
+    pub genkey: u32,
+    pub sign: u32,
+    pub ecdh: u32,
+}
+
+impl EccConfig {
+    pub fn from_path(path: &str) -> Result<Self> {
+        if path.starts_with("/dev/tty") {
+            Ok(Self::for_swi())
+        } else if path.starts_with("/dev/i2c") {
+            Ok(Self::for_i2c())
+        } else {
+            Err(Error::invalid_address())
+        }
+    }
+
+    pub fn for_swi() -> Self {
+        Self {
+            wake_delay: 1500,
+            durations: EccCommandDuration {
+                info: 500,
+                read: 800,
+                write: 8_000,
+                lock: 19_500,
+                nonce: 17_000,
+                random: 15_000,
+                genkey: 85_000,
+                sign: 80_000,
+                ecdh: 42_000,
+            },
+        }
+    }
+
+    pub fn for_i2c() -> Self {
+        Self {
+            wake_delay: 1000,
+            durations: EccCommandDuration {
+                info: 500,
+                read: 800,
+                write: 8_000,
+                lock: 19_500,
+                nonce: 7_000,
+                random: 15_000,
+                genkey: 59_000,
+                sign: 68_000,
+                ecdh: 28_000,
+            },
+        }
+    }
+
+    pub fn command_duration(&self, command: &EccCommand) -> Duration {
+        let micros = match command {
+            EccCommand::Info => self.durations.info,
+            EccCommand::Read { .. } => self.durations.read,
+            EccCommand::Write { .. } => self.durations.write,
+            EccCommand::Lock { .. } => self.durations.lock,
+            EccCommand::Nonce { .. } => self.durations.nonce,
+            EccCommand::Random => self.durations.random,
+            EccCommand::GenKey { .. } => self.durations.genkey,
+            EccCommand::Sign { .. } => self.durations.sign,
+            EccCommand::Ecdh { .. } => self.durations.ecdh,
+        };
+        Duration::from_micros(micros as u64)
+    }
+}
+
+impl Ecc {
+    pub fn from_path(path: &str, address: u16, config: Option<EccConfig>) -> Result<Self> {
+        let transport = if path.starts_with("/dev/tty") {
+            transport::SwiTransport::new(path)?.into()
+        } else if path.starts_with("/dev/i2c") {
+            transport::I2cTransport::new(path, address)?.into()
+        } else {
+            return Err(Error::invalid_address());
+        };
+
+        let config = if let Some(config) = config {
+            config
+        } else {
+            EccConfig::from_path(path)?
+        };
+
+        Ok(Self { transport, config })
     }
 
     pub fn get_info(&mut self) -> Result<Bytes> {
@@ -161,14 +257,15 @@ impl Ecc {
         retries: u8,
     ) -> Result<Bytes> {
         let mut buf = BytesMut::with_capacity(ATCA_CMD_SIZE_MAX as usize);
+        let delay = self.config.command_duration(command);
+        let wake_delay = Duration::from_micros(self.config.wake_delay as u64);
+
         for retry in 0..retries {
             buf.clear();
             buf.put_u8(self.transport.put_command_flag());
             command.bytes_into(&mut buf);
 
-            self.transport.send_wake()?;
-
-            let delay = self.transport.command_duration(command);
+            self.transport.send_wake(wake_delay)?;
 
             if let Err(_err) = self.transport.send_recv_buf(delay, &mut buf) {
                 if retry == retries {
