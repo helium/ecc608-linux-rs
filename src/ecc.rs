@@ -18,7 +18,6 @@ pub struct Ecc {
 }
 
 pub const MAX_SLOT: u8 = 15;
-pub const DEFAULT_WAKE_DELAY: u32 = 1500; // in microseconds
 
 pub(crate) const CMD_RETRIES: u8 = 10;
 
@@ -54,7 +53,7 @@ impl EccConfig {
 
     pub fn for_swi() -> Self {
         Self {
-            wake_delay: DEFAULT_WAKE_DELAY,
+            wake_delay: 1500,
             durations: EccCommandDuration {
                 info: 500,
                 read: 800,
@@ -71,7 +70,7 @@ impl EccConfig {
 
     pub fn for_i2c() -> Self {
         Self {
-            wake_delay: DEFAULT_WAKE_DELAY,
+            wake_delay: 1000,
             durations: EccCommandDuration {
                 info: 500,
                 read: 800,
