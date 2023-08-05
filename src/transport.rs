@@ -1,5 +1,5 @@
 use bytes::{BufMut, BytesMut};
-use std::{fs::File, thread, time::Duration};
+use std::{fs::File, thread, time::Duration, time::Instant};
 
 use crate::constants::{
     ATCA_I2C_COMMAND_FLAG, ATCA_RSP_SIZE_MAX, ATCA_SWI_COMMAND_FLAG, ATCA_SWI_SLEEP_FLAG,
@@ -18,6 +18,7 @@ const SWI_BIT_SEND_DELAY: Duration = Duration::from_micros(45);
 pub struct I2cTransport {
     port: I2c<File>,
     address: u16,
+    last_wake: Instant,
 }
 
 pub struct SwiTransport {
@@ -41,10 +42,10 @@ impl From<SwiTransport> for TransportProtocol {
 }
 
 impl TransportProtocol {
-    pub fn send_wake(&mut self, wake_delay: Duration) -> Result {
+    pub fn send_wake(&mut self, wake_delay: Duration, min_wake_interval: Duration) -> Result {
         match self {
-            Self::I2c(i2c_handle) => i2c_handle.send_wake(wake_delay),
-            Self::Swi(swi_handle) => swi_handle.send_wake(wake_delay),
+            Self::I2c(i2c_handle) => i2c_handle.send_wake(wake_delay, min_wake_interval),
+            Self::Swi(swi_handle) => swi_handle.send_wake(wake_delay, min_wake_interval),
         }
     }
 
@@ -72,20 +73,30 @@ impl TransportProtocol {
 
 impl I2cTransport {
     pub fn new(path: &str, address: u16) -> Result<Self> {
+        let last_wake = Instant::now().checked_sub(Duration::from_secs(10)).unwrap();
         let mut port = I2c::from_path(path)?;
         port.smbus_set_slave_address(address, false)?;
 
-        Ok(Self { port, address })
+        Ok(Self { port, address, last_wake })
     }
 
-    fn send_wake(&mut self, wake_delay: Duration) -> Result {
-        let _ = self.send_buf(0, &[0]);
-        thread::sleep(wake_delay);
+    fn send_wake(&mut self, wake_delay: Duration, min_wake_interval: Duration) -> Result {
+        if Instant::now().checked_duration_since(self.last_wake) > Some(min_wake_interval) {
+            self.send_idle();
+            let _ = self.send_buf(0, &[0x00]);
+            thread::sleep(wake_delay);
+            self.last_wake = Instant::now();
+        }
         Ok(())
     }
 
+    fn send_idle(&mut self) {
+        let _ = self.send_buf(self.address, &[2]);
+    }
+
     fn send_sleep(&mut self) {
-        let _ = self.send_buf(self.address, &[1]);
+        // disable sleeping and do a wake as needed instead
+        //let _ = self.send_buf(self.address, &[1]);
     }
 
     fn send_recv_buf(&mut self, delay: Duration, buf: &mut BytesMut) -> Result {
@@ -140,7 +151,7 @@ impl SwiTransport {
         Ok(Self { port })
     }
 
-    fn send_wake(&mut self, wake_delay: Duration) -> Result {
+    fn send_wake(&mut self, wake_delay: Duration, _min_wake_interval: Duration) -> Result {
         if let Err(_err) = self.port.as_mut().set_baud_rate(SWI_WAKE_BAUDRATE) {
             return Err(Error::timeout());
         }

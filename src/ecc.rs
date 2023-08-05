@@ -24,6 +24,7 @@ pub(crate) const CMD_RETRIES: u8 = 10;
 #[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize)]
 pub struct EccConfig {
     pub wake_delay: u32,
+    pub min_wake_interval: u32,
     pub durations: EccCommandDuration,
 }
 
@@ -54,6 +55,7 @@ impl EccConfig {
     pub fn for_swi() -> Self {
         Self {
             wake_delay: 1500,
+            min_wake_interval: 500,
             durations: EccCommandDuration {
                 info: 500,
                 read: 800,
@@ -71,6 +73,7 @@ impl EccConfig {
     pub fn for_i2c() -> Self {
         Self {
             wake_delay: 1000,
+            min_wake_interval: 500,
             durations: EccCommandDuration {
                 info: 500,
                 read: 800,
@@ -265,7 +268,7 @@ impl Ecc {
             buf.put_u8(self.transport.put_command_flag());
             command.bytes_into(&mut buf);
 
-            self.transport.send_wake(wake_delay)?;
+            self.transport.send_wake(wake_delay, Duration::from_millis(self.config.min_wake_interval.into()))?;
 
             if let Err(_err) = self.transport.send_recv_buf(delay, &mut buf) {
                 if retry == retries {
