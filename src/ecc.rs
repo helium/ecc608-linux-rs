@@ -79,7 +79,7 @@ impl EccConfig {
                 nonce: 7_000,
                 random: 15_000,
                 genkey: 59_000,
-                sign: 68_000,
+                sign: 62_000,
                 ecdh: 28_000,
             },
         }
@@ -210,11 +210,13 @@ impl Ecc {
         let digest = Sha256::digest(data);
         let _ = self.send_command_retries(
             &EccCommand::nonce(DataBuffer::MessageDigest, Bytes::copy_from_slice(&digest)),
+            true,
             false,
             1,
         )?;
         self.send_command_retries(
             &EccCommand::sign(DataBuffer::MessageDigest, key_slot),
+            false,
             true,
             1,
         )
@@ -247,13 +249,14 @@ impl Ecc {
     }
 
     pub(crate) fn send_command(&mut self, command: &EccCommand) -> Result<Bytes> {
-        self.send_command_retries(command, true, CMD_RETRIES)
+        self.send_command_retries(command, true, true, CMD_RETRIES)
     }
 
     pub(crate) fn send_command_retries(
         &mut self,
         command: &EccCommand,
-        sleep: bool,
+        wake: bool,
+        idle: bool,
         retries: u8,
     ) -> Result<Bytes> {
         let mut buf = BytesMut::with_capacity(ATCA_CMD_SIZE_MAX as usize);
@@ -265,10 +268,14 @@ impl Ecc {
             buf.put_u8(self.transport.put_command_flag());
             command.bytes_into(&mut buf);
 
-            self.transport.send_wake(wake_delay)?;
+            if wake {
+                self.transport.send_wake(wake_delay)?;
+            }
 
             if let Err(_err) = self.transport.send_recv_buf(delay, &mut buf) {
                 if retry == retries {
+                    // Sleep the chip to clear the SRAM when the maximum error retries have been exhausted
+                    self.transport.send_sleep();
                     break;
                 } else {
                     continue;
@@ -276,8 +283,8 @@ impl Ecc {
             }
 
             let response = EccResponse::from_bytes(&buf[..])?;
-            if sleep {
-                self.transport.send_sleep();
+            if idle {
+                self.transport.send_idle();
             }
             match response {
                 EccResponse::Data(bytes) => return Ok(bytes),

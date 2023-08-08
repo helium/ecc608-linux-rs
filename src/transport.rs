@@ -2,16 +2,16 @@ use bytes::{BufMut, BytesMut};
 use std::{fs::File, thread, time::Duration};
 
 use crate::constants::{
-    ATCA_I2C_COMMAND_FLAG, ATCA_RSP_SIZE_MAX, ATCA_SWI_COMMAND_FLAG, ATCA_SWI_SLEEP_FLAG,
-    ATCA_SWI_TRANSMIT_FLAG,
+    ATCA_I2C_COMMAND_FLAG, ATCA_RSP_SIZE_MAX, ATCA_SWI_COMMAND_FLAG, ATCA_SWI_IDLE_FLAG,
+    ATCA_SWI_SLEEP_FLAG, ATCA_SWI_TRANSMIT_FLAG,
 };
 use crate::{Error, Result};
 
 use i2c_linux::I2c;
 use serialport::{ClearBuffer, SerialPort};
 
-const RECV_RETRY_WAIT: Duration = Duration::from_millis(5);
-const RECV_RETRIES: u8 = 2;
+const RECV_RETRY_WAIT: Duration = Duration::from_millis(4);
+const RECV_RETRIES: u8 = 3;
 const SWI_DEFAULT_BAUDRATE: u32 = 230_400;
 const SWI_WAKE_BAUDRATE: u32 = 115_200;
 const SWI_BIT_SEND_DELAY: Duration = Duration::from_micros(45);
@@ -48,6 +48,13 @@ impl TransportProtocol {
         }
     }
 
+    pub fn send_idle(&mut self) {
+        match self {
+            Self::I2c(i2c_handle) => i2c_handle.send_idle(),
+            Self::Swi(swi_handle) => swi_handle.send_idle(),
+        }
+    }
+
     pub fn send_sleep(&mut self) {
         match self {
             Self::I2c(i2c_handle) => i2c_handle.send_sleep(),
@@ -79,13 +86,17 @@ impl I2cTransport {
     }
 
     fn send_wake(&mut self, wake_delay: Duration) -> Result {
-        let _ = self.send_buf(0, &[0]);
+        let _ = self.send_buf(0, &[0x00]);
         thread::sleep(wake_delay);
         Ok(())
     }
 
+    fn send_idle(&mut self) {
+        let _ = self.send_buf(self.address, &[0x02]);
+    }
+
     fn send_sleep(&mut self) {
-        let _ = self.send_buf(self.address, &[1]);
+        let _ = self.send_buf(self.address, &[0x01]);
     }
 
     fn send_recv_buf(&mut self, delay: Duration, buf: &mut BytesMut) -> Result {
@@ -151,6 +162,12 @@ impl SwiTransport {
         let _ = self.port.as_mut().set_baud_rate(SWI_DEFAULT_BAUDRATE);
         let _ = self.port.as_mut().clear(ClearBuffer::All);
         Ok(())
+    }
+
+    fn send_idle(&mut self) {
+        let idle_encoded = self.encode_uart_to_swi(&[ATCA_SWI_IDLE_FLAG]);
+        let _ = self.port.as_mut().write(&idle_encoded);
+        thread::sleep(SWI_BIT_SEND_DELAY * 8);
     }
 
     fn send_sleep(&mut self) {

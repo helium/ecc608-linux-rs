@@ -13,6 +13,7 @@ pub(crate) const ATCA_RSP_SIZE_MAX: u8 = 75;
 
 pub(crate) const ATCA_SWI_TRANSMIT_FLAG: u8 = 0x88;
 pub(crate) const ATCA_SWI_SLEEP_FLAG: u8 = 0xCC;
+pub(crate) const ATCA_SWI_IDLE_FLAG: u8 = 0xBB;
 pub(crate) const ATCA_SWI_COMMAND_FLAG: u8 = 0x77;
 pub(crate) const ATCA_I2C_COMMAND_FLAG: u8 = 0x03;
 pub(crate) const ATCA_INFO: u8 = 0x30;
