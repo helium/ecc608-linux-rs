@@ -210,12 +210,12 @@ impl Ecc {
         let digest = Sha256::digest(data);
         let _ = self.send_command_retries(
             &EccCommand::nonce(DataBuffer::MessageDigest, Bytes::copy_from_slice(&digest)),
-            false,
+            true,
             1,
         )?;
         self.send_command_retries(
             &EccCommand::sign(DataBuffer::MessageDigest, key_slot),
-            true,
+            false,
             1,
         )
     }
@@ -253,7 +253,7 @@ impl Ecc {
     pub(crate) fn send_command_retries(
         &mut self,
         command: &EccCommand,
-        sleep: bool,
+        wake: bool,
         retries: u8,
     ) -> Result<Bytes> {
         let mut buf = BytesMut::with_capacity(ATCA_CMD_SIZE_MAX as usize);
@@ -265,7 +265,9 @@ impl Ecc {
             buf.put_u8(self.transport.put_command_flag());
             command.bytes_into(&mut buf);
 
-            self.transport.send_wake(wake_delay)?;
+            if wake {
+                self.transport.send_wake(wake_delay)?;
+            }
 
             if let Err(_err) = self.transport.send_recv_buf(delay, &mut buf) {
                 if retry == retries {
@@ -276,9 +278,6 @@ impl Ecc {
             }
 
             let response = EccResponse::from_bytes(&buf[..])?;
-            if sleep {
-                self.transport.send_sleep();
-            }
             match response {
                 EccResponse::Data(bytes) => return Ok(bytes),
                 EccResponse::Error(err) if err.is_recoverable() && retry < retries => continue,
