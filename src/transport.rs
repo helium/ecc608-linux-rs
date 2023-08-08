@@ -2,8 +2,8 @@ use bytes::{BufMut, BytesMut};
 use std::{fs::File, thread, time::Duration};
 
 use crate::constants::{
-    ATCA_I2C_COMMAND_FLAG, ATCA_RSP_SIZE_MAX, ATCA_SWI_COMMAND_FLAG, ATCA_SWI_SLEEP_FLAG,
-    ATCA_SWI_TRANSMIT_FLAG, ATCA_SWI_IDLE_FLAG,
+    ATCA_I2C_COMMAND_FLAG, ATCA_RSP_SIZE_MAX, ATCA_SWI_COMMAND_FLAG, ATCA_SWI_IDLE_FLAG,
+    ATCA_SWI_SLEEP_FLAG, ATCA_SWI_TRANSMIT_FLAG,
 };
 use crate::{Error, Result};
 
