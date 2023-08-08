@@ -92,11 +92,11 @@ impl I2cTransport {
     }
 
     fn send_idle(&mut self) {
-        let _ = self.send_buf(self.address, &[2]);
+        let _ = self.send_buf(self.address, &[0x02]);
     }
 
     fn send_sleep(&mut self) {
-        let _ = self.send_buf(self.address, &[1]);
+        let _ = self.send_buf(self.address, &[0x01]);
     }
 
     fn send_recv_buf(&mut self, delay: Duration, buf: &mut BytesMut) -> Result {
