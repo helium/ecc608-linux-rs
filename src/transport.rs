@@ -86,12 +86,6 @@ impl I2cTransport {
     }
 
     fn send_wake(&mut self, wake_delay: Duration) -> Result {
-        let _ = self.send_buf(0, &[0x00]);
-        thread::sleep(wake_delay);
-        Ok(())
-    }
-
-    fn send_wake(&mut self, wake_delay: Duration) -> Result {
         // Number of times you want to send 0x00
         let num_zeros_to_send = 3; // You can change this to the desired number
         let zeros = vec![0x00; num_zeros_to_send];
