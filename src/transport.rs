@@ -46,7 +46,8 @@ impl From<rppal::gpio::Error> for Error {
         // Here, you'll need to map or convert the `rppal::gpio::Error` into an appropriate variant or representation of your custom `Error` type
         // This will depend on how your custom `Error` type is structured
         // As an example, you might have something like this:
-        Error::SerialPort(err)
+        //Error::SerialPort(err)
+        Error::timeout()
     }
 }
 
