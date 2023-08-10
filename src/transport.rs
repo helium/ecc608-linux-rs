@@ -91,13 +91,9 @@ impl I2cTransport {
         // Create a new Gpio instance
         let gpio = Gpio::new()?;
 
-        // Retrieve the SDA and SCL pins as general pins
-        let mut sda_pin = gpio.get(2)?;
-        let mut scl_pin = gpio.get(3)?;
-
-        // Set the SDA and SCL pins to Output mode
-        sda_pin.set_mode(Mode::Output);
-        scl_pin.set_mode(Mode::Output);
+        // Retrieve the SDA and SCL pins as output pins
+        let mut sda_pin = gpio.get(2)?.into_output();
+        let mut scl_pin = gpio.get(3)?.into_output();
 
         // Set the SDA and SCL pins low
         sda_pin.set_low();
