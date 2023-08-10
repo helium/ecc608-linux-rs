@@ -103,8 +103,8 @@ impl I2cTransport {
         thread::sleep(Duration::from_micros(60));
 
         // Switch the pins back to Alt0 mode (i2c)
-        sda_pin.into_io;
-        scl_pin.into_io;
+        // sda_pin.into_io;
+        // scl_pin.into_io;
         thread::sleep(wake_delay);
         Ok(())
     }
