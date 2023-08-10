@@ -86,7 +86,7 @@ impl I2cTransport {
         Ok(Self { port, address })
     }
 
-    fn send_wake(&mut self, wake_delay: Duration) -> Result {
+    fn send_wake(&mut self, wake_delay: Duration) -> Result<(), Box<dyn Error>> {
         // Create a new Gpio instance
         let gpio = Gpio::new()?;
 
