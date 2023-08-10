@@ -1,5 +1,6 @@
 use bytes::{BufMut, BytesMut};
 use std::{fs::File, thread, time::Duration};
+use rppal::gpio::{Gpio, Mode};
 
 use crate::constants::{
     ATCA_I2C_COMMAND_FLAG, ATCA_RSP_SIZE_MAX, ATCA_SWI_COMMAND_FLAG, ATCA_SWI_IDLE_FLAG,
@@ -87,20 +88,23 @@ impl I2cTransport {
 
     fn send_wake(&mut self, wake_delay: Duration) -> Result {
 
-        let f = self.port.i2c_functionality()?;
-        println!("Supported functionality: {:?}", f);
-        
-        // Number of times you want to send 0x00
-        let num_zeros_to_send = 3; // You can change this to the desired number
-        let zeros = vec![0x00; num_zeros_to_send];
+        // Create a new Gpio instance
+        let gpio = Gpio::new()?;
 
-        let write_msg = i2c_linux::Message::Write {
-            address: 0, // The address to send the wake command
-            data: &zeros,
-            flags: i2c_linux::WriteFlags::IGNORE_NACK | i2c_linux::WriteFlags::NO_START, // Using IGNORE_NACK and NO_START flags
-        };
+        // Get the SDA and SCL pins
+        let mut sda_pin = gpio.get(2)?.into_output();
+        let mut scl_pin = gpio.get(3)?.into_output();
 
-        self.port.i2c_transfer(&mut [write_msg])?;
+        // Set the SDA and SCL pins low
+        sda_pin.set_low();
+        scl_pin.set_low();
+
+        // Hold them low for 60 microseconds
+        thread::sleep(Duration::from_micros(60));
+
+        // Switch the pins back to Alt0 mode (i2c)
+        sda_pin.set_mode(Mode::Alt0);
+        scl_pin.set_mode(Mode::Alt0);
         thread::sleep(wake_delay);
         Ok(())
     }
