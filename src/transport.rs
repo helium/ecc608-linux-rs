@@ -93,7 +93,7 @@ impl I2cTransport {
         let write_msg = i2c_linux::Message::Write {
             address: 0, // The address to send the wake command
             data: &zeros,
-            flags: i2c_linux::WriteFlags::IGNORE_NACK, // Using IGNORE_NACK flag
+            flags: i2c_linux::WriteFlags::IGNORE_NACK | i2c_linux::WriteFlags::NO_STOP, // Using IGNORE_NACK and NO_STOP flags
         };
 
         self.port.i2c_transfer(&mut [write_msg])?;
