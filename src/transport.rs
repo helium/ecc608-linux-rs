@@ -114,7 +114,9 @@ impl I2cTransport {
         sda_pin.set_high();
         scl_pin.set_high();
 
-        gpio.close();
+        // Drop pins
+        drop(sda_pin);
+        drop(scl_pin);
         
         thread::sleep(wake_delay);
         Ok(())
