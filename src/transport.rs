@@ -91,6 +91,22 @@ impl I2cTransport {
         Ok(())
     }
 
+    fn send_wake(&mut self, wake_delay: Duration) -> Result {
+        // Number of times you want to send 0x00
+        let num_zeros_to_send = 3; // You can change this to the desired number
+        let zeros = vec![0x00; num_zeros_to_send];
+
+        let write_msg = i2c_linux::Message::Write {
+            address: 0, // The address to send the wake command
+            data: &zeros,
+            flags: i2c_linux::WriteFlags::IGNORE_NACK, // Using IGNORE_NACK flag
+        };
+
+        self.port.i2c_transfer(&mut [write_msg])?;
+        thread::sleep(wake_delay);
+        Ok(())
+    }
+    
     fn send_idle(&mut self) {
         let _ = self.send_buf(self.address, &[0x02]);
     }
