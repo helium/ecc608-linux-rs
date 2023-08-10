@@ -88,11 +88,11 @@ impl I2cTransport {
 
     fn send_wake(&mut self, wake_delay: Duration) -> Result {
         // Create a new Gpio instance
-        let gpio = Gpio::new().map_err(Error::from)?;
+        let gpio = Gpio::new()?;
 
         // Retrieve the SDA and SCL pins as output pins
-        let mut sda_pin = gpio.get(2)?.into_output().map_err(Error::from)?;
-        let mut scl_pin = gpio.get(3)?.into_output().map_err(Error::from)?;
+        let mut sda_pin = gpio.get(2)?.into_output();
+        let mut scl_pin = gpio.get(3)?.into_output();
 
         // Set the SDA and SCL pins low
         sda_pin.set_low();
