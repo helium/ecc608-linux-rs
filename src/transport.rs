@@ -100,7 +100,7 @@ impl I2cTransport {
         thread::sleep(wake_delay);
         Ok(())
     }
-    
+
     fn send_idle(&mut self) {
         let _ = self.send_buf(self.address, &[0x02]);
     }
