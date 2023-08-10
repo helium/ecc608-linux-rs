@@ -17,4 +17,4 @@ bitfield = "0"
 serde = { version = "1", features = ["derive"] }
 serde_derive = "1"
 thiserror = "1"
-rppal = { version = "0.14.1", features = ["hal"] }
+rppal = "0.14.1"
