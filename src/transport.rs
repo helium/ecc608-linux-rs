@@ -1,7 +1,6 @@
 use bytes::{BufMut, BytesMut};
 use std::{fs::File, thread, time::Duration};
 use rppal::gpio::{Gpio, Mode};
-use rppal::i2c::I2c;
 
 use crate::constants::{
     ATCA_I2C_COMMAND_FLAG, ATCA_RSP_SIZE_MAX, ATCA_SWI_COMMAND_FLAG, ATCA_SWI_IDLE_FLAG,
@@ -102,10 +101,14 @@ impl I2cTransport {
         let gpio = Gpio::new()?;
 
         // Retrieve the SDA and SCL pins as output pins
-        let mut sda_pin = gpio.get(2)?.into_output();
-        let mut scl_pin = gpio.get(3)?.into_output();
+        let mut sda_pin = gpio.get(2);
+        let mut scl_pin = gpio.get(3);
 
-        // Set the SDA and SCL pins low
+        // Set pin mode to output
+        sda_pin.set_mode(Mode::Output);
+        scl_pin.set_mode(Mode::Output);
+
+        // Send the wake pulse
         sda_pin.set_low();
         scl_pin.set_low();
 
@@ -114,9 +117,6 @@ impl I2cTransport {
 
         sda_pin.set_high();
         scl_pin.set_high();
-
-        // Switch back to i2c mode
-        let mut i2c = I2c::new()?;
         
         thread::sleep(wake_delay);
         Ok(())
