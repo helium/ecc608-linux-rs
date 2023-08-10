@@ -113,6 +113,9 @@ impl I2cTransport {
 
         sda_pin.set_high();
         scl_pin.set_high();
+
+        sda_pin.set_mode(Mode::Alt0);
+        scl_pin.set_mode(Mode::Alt0);
         
         thread::sleep(wake_delay);
         Ok(())
