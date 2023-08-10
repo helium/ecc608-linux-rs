@@ -110,6 +110,9 @@ impl I2cTransport {
 
         // Hold them low for 60 microseconds
         thread::sleep(Duration::from_micros(60));
+
+        sda_pin.set_high();
+        scl_pin.set_high();
         
         thread::sleep(wake_delay);
         Ok(())
