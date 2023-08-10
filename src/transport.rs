@@ -101,12 +101,8 @@ impl I2cTransport {
         let gpio = Gpio::new()?;
 
         // Retrieve the SDA and SCL pins as output pins
-        let mut sda_pin = gpio.get(2);
-        let mut scl_pin = gpio.get(3);
-
-        // Set pin mode to output
-        sda_pin.set_mode(Mode::Output);
-        scl_pin.set_mode(Mode::Output);
+        let mut sda_pin = gpio.get(2)?.into_output();
+        let mut scl_pin = gpio.get(3)?.into_output();
 
         // Send the wake pulse
         sda_pin.set_low();
@@ -117,6 +113,8 @@ impl I2cTransport {
 
         sda_pin.set_high();
         scl_pin.set_high();
+
+        gpio.close();
         
         thread::sleep(wake_delay);
         Ok(())
