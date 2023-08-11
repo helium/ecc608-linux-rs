@@ -1,5 +1,5 @@
 use bytes::{BufMut, BytesMut};
-use std::{fs::File, thread, time::Duration};
+use std::{fs::File, thread, time::Duration, env};
 use rppal::gpio::{Gpio, Mode};
 use rppal::system::DeviceInfo;
 use lazy_static::lazy_static;
@@ -12,6 +12,9 @@ use crate::{Error, Result};
 
 use i2c_linux::I2c;
 use serialport::{ClearBuffer, SerialPort};
+
+const DEFAULT_SCL_PIN: u8 = 3; // Replace with your default SCL pin
+const DEFAULT_SDA_PIN: u8 = 2; // Replace with your default SDA pin
 
 const RECV_RETRY_WAIT: Duration = Duration::from_millis(4);
 const RECV_RETRIES: u8 = 3;
@@ -105,12 +108,23 @@ impl I2cTransport {
 
     fn send_wake(&mut self, wake_delay: Duration) -> Result {
         if *IS_RASPI {
+
+            let scl_pin_number: u8 = env::var("GW_SCL_PIN")
+                .unwrap_or_else(|_| DEFAULT_SCL_PIN.to_string())
+                .parse()
+                .unwrap_or(DEFAULT_SCL_PIN);
+
+            let sda_pin_number: u8 = env::var("GW_SDA_PIN")
+                .unwrap_or_else(|_| DEFAULT_SDA_PIN.to_string())
+                .parse()
+                .unwrap_or(DEFAULT_SDA_PIN);
+            
             // Create a new Gpio instance
             let gpio = Gpio::new()?;
 
             // Retrieve the SDA and SCL pins as output pins
-            let mut sda_pin = gpio.get(2)?.into_output();
-            let mut scl_pin = gpio.get(3)?.into_output();
+            let mut sda_pin = gpio.get(sda_pin_number)?.into_output();
+            let mut scl_pin = gpio.get(scl_pin_number)?.into_output();
 
             // Send the wake pulse
             sda_pin.set_low();
