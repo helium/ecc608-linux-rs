@@ -1,6 +1,8 @@
 use bytes::{BufMut, BytesMut};
 use std::{fs::File, thread, time::Duration};
 use rppal::gpio::{Gpio, Mode};
+use rppal::system::DeviceInfo;
+use lazy_static::lazy_static;
 
 use crate::constants::{
     ATCA_I2C_COMMAND_FLAG, ATCA_RSP_SIZE_MAX, ATCA_SWI_COMMAND_FLAG, ATCA_SWI_IDLE_FLAG,
@@ -16,6 +18,11 @@ const RECV_RETRIES: u8 = 3;
 const SWI_DEFAULT_BAUDRATE: u32 = 230_400;
 const SWI_WAKE_BAUDRATE: u32 = 115_200;
 const SWI_BIT_SEND_DELAY: Duration = Duration::from_micros(45);
+
+lazy_static! {
+    static ref IS_RASPI: bool = rppal::system::DeviceInfo::new().is_ok();
+}
+
 pub struct I2cTransport {
     port: I2c<File>,
     address: u16,
@@ -97,27 +104,30 @@ impl I2cTransport {
     }
 
     fn send_wake(&mut self, wake_delay: Duration) -> Result {
-        // Create a new Gpio instance
-        let gpio = Gpio::new()?;
+        if *IS_RASPI {
+            // Create a new Gpio instance
+            let gpio = Gpio::new()?;
 
-        // Retrieve the SDA and SCL pins as output pins
-        let mut sda_pin = gpio.get(2)?.into_output();
-        let mut scl_pin = gpio.get(3)?.into_output();
+            // Retrieve the SDA and SCL pins as output pins
+            let mut sda_pin = gpio.get(2)?.into_output();
+            let mut scl_pin = gpio.get(3)?.into_output();
 
-        // Send the wake pulse
-        sda_pin.set_low();
-        scl_pin.set_low();
+            // Send the wake pulse
+            sda_pin.set_low();
+            scl_pin.set_low();
 
-        // Hold them low for 60 microseconds
-        thread::sleep(Duration::from_micros(60));
+            // Hold them low for 60 microseconds
+            thread::sleep(Duration::from_micros(60));
 
-        sda_pin.set_high();
-        scl_pin.set_high();
+            sda_pin.set_high();
+            scl_pin.set_high();
 
-        // Drop pins
-        drop(sda_pin);
-        drop(scl_pin);
-        
+            // Drop pins
+            drop(sda_pin);
+            drop(scl_pin);
+        } else {
+            let _ = self.send_buf(0, &[0x00]);
+        }
         thread::sleep(wake_delay);
         Ok(())
     }
