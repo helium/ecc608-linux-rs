@@ -1,7 +1,6 @@
 use bytes::{BufMut, BytesMut};
 use std::{fs::File, thread, time::Duration, env};
-use rppal::gpio::{Gpio, Mode};
-use rppal::system::DeviceInfo;
+use rppal::{gpio::Gpio, gpio::Mode, system::DeviceInfo};
 use lazy_static::lazy_static;
 
 use crate::constants::{
