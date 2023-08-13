@@ -143,8 +143,11 @@ impl I2cTransport {
                 // Drop pins
                 drop(sda_pin);
                 drop(scl_pin);
-                #[cfg(not(feature = "rppal"))]
-                { let _ = self.send_buf(0, &[0x00]); }
+            }
+
+            #[cfg(not(feature = "rppal"))]
+            { let _ = self.send_buf(0, &[0x00]); }
+
         } else {
             let _ = self.send_buf(0, &[0x00]);
         }
