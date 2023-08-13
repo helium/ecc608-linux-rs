@@ -54,12 +54,9 @@ impl From<SwiTransport> for TransportProtocol {
 }
 
 #[cfg(feature = "raspi")]
-{
-    impl From<rppal::gpio::Error> for Error {
-        fn from(err: rppal::gpio::Error) -> Self {
-
-            Error::timeout()
-        }
+impl From<rppal::gpio::Error> for Error {
+    fn from(err: rppal::gpio::Error) -> Self {
+        Error::timeout()
     }
 }
 
