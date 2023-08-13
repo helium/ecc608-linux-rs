@@ -1,7 +1,8 @@
 use bytes::{BufMut, BytesMut};
 use std::{fs::File, thread, time::Duration, env};
-use rppal::{gpio::Gpio, gpio::Mode, system::DeviceInfo};
 use lazy_static::lazy_static;
+#[cfg(feature = "rppal")]
+use rppal::{gpio::Gpio, gpio::Mode, system::DeviceInfo};
 
 use crate::constants::{
     ATCA_I2C_COMMAND_FLAG, ATCA_RSP_SIZE_MAX, ATCA_SWI_COMMAND_FLAG, ATCA_SWI_IDLE_FLAG,
