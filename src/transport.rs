@@ -1,7 +1,7 @@
 use bytes::{BufMut, BytesMut};
 use std::{fs::File, thread, time::Duration, env};
 use lazy_static::lazy_static;
-#[cfg(feature = "rppal")]
+#[cfg(feature = "raspi")]
 use rppal::{gpio::Gpio, gpio::Mode, system::DeviceInfo};
 
 use crate::constants::{
@@ -22,10 +22,10 @@ const SWI_DEFAULT_BAUDRATE: u32 = 230_400;
 const SWI_WAKE_BAUDRATE: u32 = 115_200;
 const SWI_BIT_SEND_DELAY: Duration = Duration::from_micros(45);
 
-#[cfg(feature = "rppal")]
+#[cfg(feature = "raspi")]
 lazy_static! { static ref IS_RASPI: bool = rppal::system::DeviceInfo::new().is_ok(); }
 
-#[cfg(not(feature = "rppal"))]
+#[cfg(not(feature = "raspi"))]
 lazy_static! { static ref IS_RASPI: bool = false; }
 
 pub struct I2cTransport {
@@ -121,7 +121,7 @@ impl I2cTransport {
                 .parse()
                 .unwrap_or(DEFAULT_SDA_PIN);
             
-            #[cfg(feature = "rppal")]
+            #[cfg(feature = "raspi")]
             {
                 // Create a new Gpio instance
                 let gpio = Gpio::new()?;
@@ -145,7 +145,7 @@ impl I2cTransport {
                 drop(scl_pin);
             }
 
-            #[cfg(not(feature = "rppal"))]
+            #[cfg(not(feature = "raspi"))]
             { let _ = self.send_buf(0, &[0x00]); }
 
         } else {
