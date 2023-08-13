@@ -22,10 +22,11 @@ const SWI_DEFAULT_BAUDRATE: u32 = 230_400;
 const SWI_WAKE_BAUDRATE: u32 = 115_200;
 const SWI_BIT_SEND_DELAY: Duration = Duration::from_micros(45);
 
-lazy_static! {
-    static ref IS_RASPI: bool = rppal::system::DeviceInfo::new().is_ok();
+if cfg!(feature = "rppal") {
+    lazy_static! {
+        static ref IS_RASPI: bool = rppal::system::DeviceInfo::new().is_ok();
+    }
 }
-
 pub struct I2cTransport {
     port: I2c<File>,
     address: u16,
@@ -107,7 +108,7 @@ impl I2cTransport {
     }
 
     fn send_wake(&mut self, wake_delay: Duration) -> Result {
-        if *IS_RASPI {
+        if cfg!(feature = "rppal") && *IS_RASPI {
 
             let scl_pin_number: u8 = env::var("GW_SCL_PIN")
                 .unwrap_or_else(|_| DEFAULT_SCL_PIN.to_string())
