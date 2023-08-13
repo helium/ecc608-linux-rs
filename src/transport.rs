@@ -121,26 +121,31 @@ impl I2cTransport {
                 .parse()
                 .unwrap_or(DEFAULT_SDA_PIN);
             
-            // Create a new Gpio instance
-            let gpio = Gpio::new()?;
+            #[cfg(feature = "rppal")]
+            {
+                // Create a new Gpio instance
+                let gpio = Gpio::new()?;
 
-            // Retrieve the SDA and SCL pins as output pins
-            let mut sda_pin = gpio.get(sda_pin_number)?.into_output();
-            let mut scl_pin = gpio.get(scl_pin_number)?.into_output();
+                // Retrieve the SDA and SCL pins as output pins
+                let mut sda_pin = gpio.get(sda_pin_number)?.into_output();
+                let mut scl_pin = gpio.get(scl_pin_number)?.into_output();
 
-            // Send the wake pulse
-            sda_pin.set_low();
-            scl_pin.set_low();
+                // Send the wake pulse
+                sda_pin.set_low();
+                scl_pin.set_low();
 
-            // Hold them low for 60 microseconds
-            thread::sleep(Duration::from_micros(60));
+                // Hold them low for 60 microseconds
+                thread::sleep(Duration::from_micros(60));
 
-            sda_pin.set_high();
-            scl_pin.set_high();
+                sda_pin.set_high();
+                scl_pin.set_high();
 
-            // Drop pins
-            drop(sda_pin);
-            drop(scl_pin);
+                // Drop pins
+                drop(sda_pin);
+                drop(scl_pin);
+            } else {
+                let _ = self.send_buf(0, &[0x00]);
+            }
         } else {
             let _ = self.send_buf(0, &[0x00]);
         }
