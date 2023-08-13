@@ -21,5 +21,4 @@ rppal = { version = "0.14.1", optional = true }
 lazy_static = "1.4.0"
 
 [features]
-default = []
 rppal = ["rppal"]
