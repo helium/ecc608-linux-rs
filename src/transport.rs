@@ -25,7 +25,7 @@ const SWI_BIT_SEND_DELAY: Duration = Duration::from_micros(45);
 #[cfg(feature = "rppal")]
 lazy_static! { static ref IS_RASPI: bool = rppal::system::DeviceInfo::new().is_ok(); }
 
-#[cfg(feature = "default")]
+#[cfg(not(feature = "rppal"))]
 lazy_static! { static ref IS_RASPI: bool = false; }
 
 pub struct I2cTransport {
