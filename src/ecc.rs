@@ -265,6 +265,7 @@ impl Ecc {
         let mut buf = BytesMut::with_capacity(ATCA_CMD_SIZE_MAX as usize);
         let delay = self.config.command_duration(command);
         let wake_delay = Duration::from_micros(self.config.wake_delay as u64);
+        let wake_duration = Duration::from_micros(self.config.durations.wake as u64);
 
         for retry in 0..retries {
             buf.clear();
@@ -272,7 +273,7 @@ impl Ecc {
             command.bytes_into(&mut buf);
 
             if wake {
-                self.transport.send_wake(wake_delay)?;
+                self.transport.send_wake(wake_delay, wake_duration)?;
             }
 
             if let Err(_err) = self.transport.send_recv_buf(delay, &mut buf) {
