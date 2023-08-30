@@ -38,6 +38,7 @@ pub struct EccCommandDuration {
     pub genkey: u32,
     pub sign: u32,
     pub ecdh: u32,
+    pub wake: u32,
 }
 
 impl EccConfig {
@@ -81,6 +82,7 @@ impl EccConfig {
                 genkey: 59_000,
                 sign: 62_000,
                 ecdh: 28_000,
+                wake: 60,
             },
         }
     }
