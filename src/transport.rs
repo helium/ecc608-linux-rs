@@ -61,9 +61,9 @@ impl From<rppal::gpio::Error> for Error {
 }
 
 impl TransportProtocol {
-    pub fn send_wake(&mut self, wake_delay: Duration) -> Result {
+    pub fn send_wake(&mut self, wake_delay: Duration, wake_duration: Duration) -> Result {
         match self {
-            Self::I2c(i2c_handle) => i2c_handle.send_wake(wake_delay),
+            Self::I2c(i2c_handle) => i2c_handle.send_wake(wake_delay, wake_duration),
             Self::Swi(swi_handle) => swi_handle.send_wake(wake_delay),
         }
     }
@@ -105,7 +105,7 @@ impl I2cTransport {
         Ok(Self { port, address })
     }
 
-    fn send_wake(&mut self, wake_delay: Duration) -> Result {
+    fn send_wake(&mut self, wake_delay: Duration, wake_duration: Duration) -> Result {
         if *IS_RASPI {
 
             let scl_pin_number: u8 = env::var("GW_SCL_PIN")
@@ -132,7 +132,7 @@ impl I2cTransport {
                 scl_pin.set_low();
 
                 // Hold them low for 60 microseconds
-                thread::sleep(Duration::from_micros(60));
+                thread::sleep(wake_duration);
 
                 sda_pin.set_high();
                 scl_pin.set_high();
