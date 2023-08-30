@@ -65,6 +65,7 @@ impl EccConfig {
                 genkey: 85_000,
                 sign: 80_000,
                 ecdh: 42_000,
+                wake: 60,
             },
         }
     }
