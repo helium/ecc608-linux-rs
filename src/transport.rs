@@ -101,7 +101,7 @@ impl I2cTransport {
     pub fn new(path: &str, address: u16) -> Result<Self> {
         let mut port = I2c::from_path(path)?;
         port.smbus_set_slave_address(address, false)?;
-        port.i2c_set_retries(RECV_RETRIES);
+        port.i2c_set_retries(RECV_RETRIES as usize);
         port.i2c_set_timeout(RECV_RETRY_WAIT);
 
         Ok(Self { port, address })
