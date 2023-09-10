@@ -132,6 +132,8 @@ impl I2cTransport {
         }
         let count = buf[0] as usize;
         if count == 0xff {
+            // Sleep the chip to clear the SRAM when the maximum error read retries have been exhausted
+            self.send_sleep();
             return Err(Error::timeout());
         }
         buf.truncate(count);
