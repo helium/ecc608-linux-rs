@@ -262,6 +262,8 @@ impl Ecc {
         let mut buf = BytesMut::with_capacity(ATCA_CMD_SIZE_MAX as usize);
         let delay = self.config.command_duration(command);
         let wake_delay = Duration::from_micros(self.config.wake_delay as u64);
+        let mut should_sleep = false; // Track whether a sleep command should be sent to the chip to clear the SRAM
+
 
         for retry in 0..retries {
             buf.clear();
@@ -274,8 +276,7 @@ impl Ecc {
 
             if let Err(_err) = self.transport.send_recv_buf(delay, &mut buf) {
                 if retry == retries {
-                    // Sleep the chip to clear the SRAM when the maximum error retries have been exhausted
-                    self.transport.send_sleep();
+                    should_sleep = true; // Set the flag to send a sleep command
                     break;
                 } else {
                     continue;
@@ -289,9 +290,17 @@ impl Ecc {
             match response {
                 EccResponse::Data(bytes) => return Ok(bytes),
                 EccResponse::Error(err) if err.is_recoverable() && retry < retries => continue,
-                EccResponse::Error(err) => return Err(Error::ecc(err)),
+                EccResponse::Error(err) => {
+                    should_sleep = true; // Set the flag to send a sleep command
+                    return Err(Error::ecc(err));
+                }
             }
         }
+
+        if should_sleep {
+        self.transport.send_sleep(); // Send the sleep command
+        }
+        
         Err(Error::timeout())
     }
 }
