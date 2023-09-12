@@ -8,7 +8,7 @@ use crate::{
 };
 use bytes::{BufMut, Bytes, BytesMut};
 use sha2::{Digest, Sha256};
-use std::time::Duration;
+use std::{thread, time::Duration};
 
 pub use crate::command::KeyType;
 
@@ -293,16 +293,16 @@ impl Ecc {
                 },
                 EccResponse::Error(err) if err.is_recoverable() && retry < retries => continue,
                 EccResponse::Error(err) => {
-                    self.error_mitigation();
+                    self.error_mitigation(wake_delay);
                     return Err(Error::ecc(err));
                 }
             }
         }
-        self.error_mitigation();
+        self.error_mitigation(wake_delay);
         Err(Error::timeout())
     }
     
-    fn error_mitigation(&mut self) {
+    fn error_mitigation(&mut self, wake_delay: Duration) {
         // Error mitigation sequence;
         // 1. Wait to make sure any command it may have still been executed completed
         // 2. Sleep chip to clear SRAM
@@ -310,9 +310,9 @@ impl Ecc {
         // 4. Put chip in idle
         thread::sleep(Duration::from_millis(150));
         self.transport.send_sleep();
-        thread::sleep(Duration::from_micros(2 * self.config.wake_delay));
+        thread::sleep(Duration::from_micros((2 * self.config.wake_delay).into())); // Convert to u64
         let _ = self.transport.send_wake(wake_delay);
-        thread::sleep(Duration::from_micros(2 * self.config.wake_delay));
+        thread::sleep(Duration::from_micros((2 * self.config.wake_delay).into())); // Convert to u64
         self.transport.send_idle();
     }
 }
