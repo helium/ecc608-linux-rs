@@ -302,6 +302,7 @@ impl Ecc {
 
         if should_sleep {
         self.transport.send_sleep(); // Send the sleep command
+        should_sleep = false;
         }
         
         Err(Error::timeout())
