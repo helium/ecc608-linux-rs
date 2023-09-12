@@ -272,15 +272,7 @@ impl Ecc {
                 self.transport.send_wake(wake_delay)?;
             }
 
-            if let Err(_err) = self.transport.send_recv_buf(delay, &mut buf) {
-                if retry == retries {
-                    // Sleep the chip to clear the SRAM when the maximum error retries have been exhausted
-                    self.transport.send_sleep();
-                    break;
-                } else {
-                    continue;
-                }
-            }
+            self.transport.send_recv_buf(delay, &mut buf);
 
             let response = EccResponse::from_bytes(&buf[..])?;
             
