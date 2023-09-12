@@ -262,8 +262,6 @@ impl Ecc {
         let mut buf = BytesMut::with_capacity(ATCA_CMD_SIZE_MAX as usize);
         let delay = self.config.command_duration(command);
         let wake_delay = Duration::from_micros(self.config.wake_delay as u64);
-        let mut should_sleep = false; // Track whether a sleep command should be sent to the chip to clear the SRAM
-
 
         for retry in 0..retries {
             buf.clear();
@@ -276,7 +274,8 @@ impl Ecc {
 
             if let Err(_err) = self.transport.send_recv_buf(delay, &mut buf) {
                 if retry == retries {
-                    should_sleep = true; // Set the flag to send a sleep command
+                    // Sleep the chip to clear the SRAM when the maximum error retries have been exhausted
+                    self.transport.send_sleep();
                     break;
                 } else {
                     continue;
@@ -287,24 +286,33 @@ impl Ecc {
             
             match response {
                 EccResponse::Data(bytes) => {
-                    if idle && !should_sleep {
+                    if idle {
                         self.transport.send_idle();
                     }
                     return Ok(bytes)
                 },
                 EccResponse::Error(err) if err.is_recoverable() && retry < retries => continue,
                 EccResponse::Error(err) => {
-                    should_sleep = true; // Set the flag to send a sleep command
+                    self.error_mitigation();
                     return Err(Error::ecc(err));
                 }
             }
         }
-
-        if should_sleep {
-        self.transport.send_sleep(); // Send the sleep command
-        should_sleep = false;
-        }
-        
+        self.error_mitigation();
         Err(Error::timeout())
+    }
+    
+    fn error_mitigation(&mut self) {
+        // Error mitigation sequence;
+        // 1. Wait to make sure any command it may have still been executed completed
+        // 2. Sleep chip to clear SRAM
+        // 3. Wake chip up again
+        // 4. Put chip in idle
+        thread::sleep(Duration::from_millis(150));
+        self.transport.send_sleep();
+        thread::sleep(Duration::from_micros(2 * self.config.wake_delay));
+        let _ = self.transport.send_wake(wake_delay);
+        thread::sleep(Duration::from_micros(2 * self.config.wake_delay));
+        self.transport.send_idle();
     }
 }
