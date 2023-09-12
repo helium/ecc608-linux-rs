@@ -275,16 +275,16 @@ impl Ecc {
             if let Err(_err) = self.transport.send_recv_buf(delay, &mut buf) {
                 continue;
             }
-            
+
             let response = EccResponse::from_bytes(&buf[..])?;
-            
+
             match response {
                 EccResponse::Data(bytes) => {
                     if idle {
                         self.transport.send_idle();
                     }
-                    return Ok(bytes)
-                },
+                    return Ok(bytes);
+                }
                 EccResponse::Error(err) if err.is_recoverable() && retry < retries => continue,
                 EccResponse::Error(err) => {
                     self.transport.send_sleep();
