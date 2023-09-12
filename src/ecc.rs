@@ -212,13 +212,13 @@ impl Ecc {
             &EccCommand::nonce(DataBuffer::MessageDigest, Bytes::copy_from_slice(&digest)),
             true,
             false,
-            1,
+            0,
         )?;
         self.send_command_retries(
             &EccCommand::sign(DataBuffer::MessageDigest, key_slot),
             false,
             true,
-            1,
+            0,
         )
     }
 
@@ -263,7 +263,7 @@ impl Ecc {
         let delay = self.config.command_duration(command);
         let wake_delay = Duration::from_micros(self.config.wake_delay as u64);
 
-        for retry in 0..retries {
+        for retry in 0..=retries {
             buf.clear();
             buf.put_u8(self.transport.put_command_flag());
             command.bytes_into(&mut buf);
