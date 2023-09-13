@@ -17,6 +17,7 @@ const DEFAULT_SCL_PIN: u8 = 3; // Replace with your default SCL pin
 const DEFAULT_SDA_PIN: u8 = 2; // Replace with your default SDA pin
 
 const RECV_RETRY_WAIT: Duration = Duration::from_millis(4);
+const RECV_RETRY_WAIT_LAST_RESORT: Duration = Duration::from_millis(40);
 const RECV_RETRIES: u8 = 10;
 const SWI_DEFAULT_BAUDRATE: u32 = 230_400;
 const SWI_WAKE_BAUDRATE: u32 = 115_200;
@@ -182,7 +183,10 @@ impl I2cTransport {
     fn recv_buf(&mut self, buf: &mut BytesMut) -> Result {
         buf.resize(ATCA_RSP_SIZE_MAX as usize, 0);
         buf[0] = 0xff;
-        for _retry in 0..RECV_RETRIES {
+        for retry in 0..=RECV_RETRIES {
+            if retry == RECV_RETRIES {
+                thread::sleep(RECV_RETRY_WAIT_LAST_RESORT);
+            }
             let msg = i2c_linux::Message::Read {
                 address: self.address,
                 data: buf,

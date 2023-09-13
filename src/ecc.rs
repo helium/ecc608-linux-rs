@@ -215,13 +215,13 @@ impl Ecc {
             &EccCommand::nonce(DataBuffer::MessageDigest, Bytes::copy_from_slice(&digest)),
             true,
             false,
-            1,
+            0,
         )?;
         self.send_command_retries(
             &EccCommand::sign(DataBuffer::MessageDigest, key_slot),
             false,
             true,
-            1,
+            0,
         )
     }
 
@@ -267,7 +267,7 @@ impl Ecc {
         let wake_delay = Duration::from_micros(self.config.wake_delay as u64);
         let wake_duration = Duration::from_micros(self.config.durations.wake as u64);
 
-        for retry in 0..retries {
+        for retry in 0..=retries {
             buf.clear();
             buf.put_u8(self.transport.put_command_flag());
             command.bytes_into(&mut buf);
@@ -277,25 +277,26 @@ impl Ecc {
             }
 
             if let Err(_err) = self.transport.send_recv_buf(delay, &mut buf) {
-                if retry == retries {
-                    // Sleep the chip to clear the SRAM when the maximum error retries have been exhausted
-                    self.transport.send_sleep();
-                    break;
-                } else {
-                    continue;
-                }
+                continue;
             }
 
             let response = EccResponse::from_bytes(&buf[..])?;
-            if idle {
-                self.transport.send_idle();
-            }
+
             match response {
-                EccResponse::Data(bytes) => return Ok(bytes),
+                EccResponse::Data(bytes) => {
+                    if idle {
+                        self.transport.send_idle();
+                    }
+                    return Ok(bytes);
+                }
                 EccResponse::Error(err) if err.is_recoverable() && retry < retries => continue,
-                EccResponse::Error(err) => return Err(Error::ecc(err)),
+                EccResponse::Error(err) => {
+                    self.transport.send_sleep();
+                    return Err(Error::ecc(err));
+                }
             }
         }
+        self.transport.send_sleep();
         Err(Error::timeout())
     }
 }
