@@ -273,25 +273,25 @@ impl Ecc {
             }
 
             if let Err(_err) = self.transport.send_recv_buf(delay, &mut buf) {
-                if retry == retries {
-                    // Sleep the chip to clear the SRAM when the maximum error retries have been exhausted
-                    self.transport.send_sleep();
-                    break;
-                } else {
-                    continue;
-                }
+                continue;
             }
 
             let response = EccResponse::from_bytes(&buf[..])?;
-            if idle {
-                self.transport.send_idle();
-            }
             match response {
-                EccResponse::Data(bytes) => return Ok(bytes),
+                EccResponse::Data(bytes) => {
+                    if idle {
+                        self.transport.send_idle();
+                    }
+                    return Ok(bytes);
+                }
                 EccResponse::Error(err) if err.is_recoverable() && retry < retries => continue,
-                EccResponse::Error(err) => return Err(Error::ecc(err)),
+                EccResponse::Error(err) => {
+                    self.transport.send_sleep();
+                    return Err(Error::ecc(err));
+                }
             }
         }
+        self.transport.send_sleep();
         Err(Error::timeout())
     }
 }
