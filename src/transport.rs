@@ -1,5 +1,8 @@
 use bytes::{BufMut, BytesMut};
-use std::{fs::File, thread, time::Duration};
+use std::{fs::File, thread, time::Duration, env};
+use lazy_static::lazy_static;
+#[cfg(feature = "raspi")]
+use rppal::{gpio::Gpio, gpio::Mode, system::DeviceInfo};
 
 use crate::constants::{
     ATCA_I2C_COMMAND_FLAG, ATCA_RSP_SIZE_MAX, ATCA_SWI_COMMAND_FLAG, ATCA_SWI_IDLE_FLAG,
@@ -10,11 +13,21 @@ use crate::{Error, Result};
 use i2c_linux::I2c;
 use serialport::{ClearBuffer, SerialPort};
 
+const DEFAULT_SCL_PIN: u8 = 3; // Replace with your default SCL pin
+const DEFAULT_SDA_PIN: u8 = 2; // Replace with your default SDA pin
+
 const RECV_RETRY_WAIT: Duration = Duration::from_millis(4);
 const RECV_RETRIES: u8 = 10;
 const SWI_DEFAULT_BAUDRATE: u32 = 230_400;
 const SWI_WAKE_BAUDRATE: u32 = 115_200;
 const SWI_BIT_SEND_DELAY: Duration = Duration::from_micros(45);
+
+#[cfg(feature = "raspi")]
+lazy_static! { static ref IS_RASPI: bool = rppal::system::DeviceInfo::new().is_ok(); }
+
+#[cfg(not(feature = "raspi"))]
+lazy_static! { static ref IS_RASPI: bool = false; }
+
 pub struct I2cTransport {
     port: I2c<File>,
     address: u16,
@@ -40,10 +53,17 @@ impl From<SwiTransport> for TransportProtocol {
     }
 }
 
+#[cfg(feature = "raspi")]
+impl From<rppal::gpio::Error> for Error {
+    fn from(err: rppal::gpio::Error) -> Self {
+        Error::timeout()
+    }
+}
+
 impl TransportProtocol {
-    pub fn send_wake(&mut self, wake_delay: Duration) -> Result {
+    pub fn send_wake(&mut self, wake_delay: Duration, wake_duration: Duration) -> Result {
         match self {
-            Self::I2c(i2c_handle) => i2c_handle.send_wake(wake_delay),
+            Self::I2c(i2c_handle) => i2c_handle.send_wake(wake_delay, wake_duration),
             Self::Swi(swi_handle) => swi_handle.send_wake(wake_delay),
         }
     }
@@ -81,12 +101,55 @@ impl I2cTransport {
     pub fn new(path: &str, address: u16) -> Result<Self> {
         let mut port = I2c::from_path(path)?;
         port.smbus_set_slave_address(address, false)?;
+        // port.i2c_set_retries(RECV_RETRIES as usize);
+        // port.i2c_set_timeout(RECV_RETRY_WAIT);
 
         Ok(Self { port, address })
     }
 
-    fn send_wake(&mut self, wake_delay: Duration) -> Result {
-        let _ = self.send_buf(0, &[0x00]);
+    fn send_wake(&mut self, wake_delay: Duration, wake_duration: Duration) -> Result {
+        if *IS_RASPI {
+
+            let scl_pin_number: u8 = env::var("GW_SCL_PIN")
+                .unwrap_or_else(|_| DEFAULT_SCL_PIN.to_string())
+                .parse()
+                .unwrap_or(DEFAULT_SCL_PIN);
+
+            let sda_pin_number: u8 = env::var("GW_SDA_PIN")
+                .unwrap_or_else(|_| DEFAULT_SDA_PIN.to_string())
+                .parse()
+                .unwrap_or(DEFAULT_SDA_PIN);
+            
+            #[cfg(feature = "raspi")]
+            {
+                // Create a new Gpio instance
+                let gpio = Gpio::new()?;
+
+                // Retrieve the SDA and SCL pins as output pins
+                let mut sda_pin = gpio.get(sda_pin_number)?.into_output();
+                let mut scl_pin = gpio.get(scl_pin_number)?.into_output();
+
+                // Send the wake pulse
+                sda_pin.set_low();
+                scl_pin.set_low();
+
+                // Hold them low for 60 microseconds
+                thread::sleep(wake_duration);
+
+                sda_pin.set_high();
+                scl_pin.set_high();
+
+                // Drop pins
+                drop(sda_pin);
+                drop(scl_pin);
+            }
+
+            #[cfg(not(feature = "raspi"))]
+            { let _ = self.send_buf(0, &[0x00]); }
+
+        } else {
+            let _ = self.send_buf(0, &[0x00]);
+        }
         thread::sleep(wake_delay);
         Ok(())
     }
