@@ -253,6 +253,7 @@ impl EccResponse {
             [RSM, CMD_STATUS_BYTE_COMM, ..] => Self::Error(EccError::CommsError),
             [RSM, CMD_STATUS_BYTE_WATCHDOG, ..] => Self::Error(EccError::WatchDogError),
             [RSM, error, ..] => Self::Error(EccError::Unknown(*error)),
+            _ if buf.len() < 3 => Self::Error(EccError::CrcError),
             _ => {
                 let (buf, mut buf_crc) = buf.split_at(buf.len() - 2);
                 let expected = crc(buf);
