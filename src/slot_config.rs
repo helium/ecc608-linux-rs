@@ -223,15 +223,17 @@ bitfield! {
     #[derive(PartialEq, Eq)]
     pub struct SlotConfig(u16);
     impl Debug;
-    pub secret, set_secret: 15;
-    pub encrypt_read, set_encrypt_read: 14;
-    pub limited_use, set_limited_use: 13;
-    pub no_mac, set_no_mac: 12;
-    pub u8, from into ReadKey, read_key, set_read_key: 11, 8;
-    u8, _write_config, _set_write_config: 7, 4;
-    pub u8, write_key, set_write_key: 3, 0;
+    u8, _write_config, _set_write_config: 15, 12;
+    pub u8, write_key, set_write_key: 11, 8;
+    pub secret, set_secret: 7;
+    pub encrypt_read, set_encrypt_read: 6;
+    pub limited_use, set_limited_use: 5;
+    pub no_mac, set_no_mac: 4;
+    pub u8, from into ReadKey, read_key, set_read_key: 3, 0;
 }
 
+// Should probably be removed as it should manage bus endianness while
+// this responsability should not be there
 impl From<&[u8]> for SlotConfig {
     fn from(v: &[u8]) -> Self {
         let mut buf = v;

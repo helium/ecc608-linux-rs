@@ -68,17 +68,17 @@ bitfield! {
     #[derive(PartialEq, Eq, Clone, Copy)]
     pub struct OffsetAddress(u16);
     impl Debug;
-    u8, offset, set_offset: 10, 8;
-    u8, block, set_block: 12, 11;
+    u8, block, set_block: 4, 3;
+    u8, offset, set_offset: 2, 0;
 }
 
 bitfield! {
     #[derive(PartialEq, Clone, Copy, Eq)]
     pub struct DataAddress(u16);
     impl Debug;
-    u8, block, set_block: 3, 0;
-    u8, offset, set_offset: 10, 8;
-    u8, slot, set_slot: 14, 11;
+    u8, block, set_block: 11, 8;
+    u8, slot, set_slot: 6, 3;
+    u8, offset, set_offset: 2, 0;
 }
 
 impl From<&Address> for u16 {
